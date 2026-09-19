@@ -22,6 +22,14 @@ export class CameraController {
   private dragStartPos: Point2D = { x: 0, y: 0 };
   private hasMovedSignificantly: boolean = false;
 
+  // 移动端多点触控支持
+  private touchStartPos: Point2D = { x: 0, y: 0 };
+  private lastTouchPos: Point2D = { x: 0, y: 0 };
+  private touchHasMoved: boolean = false;
+  private pinchStartDist: number = 0;
+  private pinchStartZoom: number = 1.0;
+  private pinchStartWorldMid: Point2D = { x: 0, y: 0 };
+
   constructor(renderer: CadRenderer, canvas: HTMLCanvasElement, callbacks: ControllerCallbacks = {}) {
     this.renderer = renderer;
     this.canvas = canvas;
@@ -38,6 +46,12 @@ export class CameraController {
     window.addEventListener('mouseup', this.onMouseUp.bind(this));
     el.addEventListener('dblclick', this.onDblClick.bind(this));
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // 移动端 Touch 触控事件 (单指平移/拾取，双指捏合缩放)
+    el.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
+    el.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
+    el.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: false });
+    el.addEventListener('touchcancel', this.onTouchEnd.bind(this), { passive: false });
 
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && !this.isSpacePressed) {
@@ -140,7 +154,7 @@ export class CameraController {
 
     // 若非拖拽操作，则判定为点击拾取或测量取点
     if (!this.hasMovedSignificantly && sx >= 0 && sx <= rect.width && sy >= 0 && sy <= rect.height) {
-      this.handleClick(e);
+      this.triggerClickAction(e.button);
     }
   }
 
@@ -149,11 +163,118 @@ export class CameraController {
     this.renderer.fitToView();
   }
 
+  /**
+   * 移动端 Touch 触控：开始
+   */
+  private onTouchStart(e: TouchEvent): void {
+    if (e.touches.length === 1) {
+      const rect = this.canvas.getBoundingClientRect();
+      const t = e.touches[0];
+      const sx = t.clientX - rect.left;
+      const sy = t.clientY - rect.top;
+
+      this.touchStartPos = { x: sx, y: sy };
+      this.lastTouchPos = { x: sx, y: sy };
+      this.touchHasMoved = false;
+
+      this.updateCursorScreen(sx, sy);
+    } else if (e.touches.length === 2) {
+      const rect = this.canvas.getBoundingClientRect();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const s1x = t1.clientX - rect.left;
+      const s1y = t1.clientY - rect.top;
+      const s2x = t2.clientX - rect.left;
+      const s2y = t2.clientY - rect.top;
+
+      this.pinchStartDist = Math.hypot(s2x - s1x, s2y - s1y);
+      this.pinchStartZoom = this.renderer.camera.zoom;
+      const midX = (s1x + s2x) / 2;
+      const midY = (s1y + s2y) / 2;
+      this.pinchStartWorldMid = this.renderer.screenToWorld(midX, midY);
+      this.touchHasMoved = true;
+    }
+  }
+
+  /**
+   * 移动端 Touch 触控：滑动 (单指平移，双指捏合平滑缩放)
+   */
+  private onTouchMove(e: TouchEvent): void {
+    e.preventDefault(); // 阻止浏览器滚动与回弹
+    const rect = this.canvas.getBoundingClientRect();
+
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      const sx = t.clientX - rect.left;
+      const sy = t.clientY - rect.top;
+
+      const dx = sx - this.lastTouchPos.x;
+      const dy = sy - this.lastTouchPos.y;
+
+      if (Math.hypot(sx - this.touchStartPos.x, sy - this.touchStartPos.y) > 6) {
+        this.touchHasMoved = true;
+      }
+
+      this.renderer.camera.centerX -= dx / this.renderer.camera.zoom;
+      this.renderer.camera.centerY += dy / this.renderer.camera.zoom;
+      this.lastTouchPos = { x: sx, y: sy };
+
+      this.updateCursorScreen(sx, sy);
+      this.renderer.requestRender();
+    } else if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const s1x = t1.clientX - rect.left;
+      const s1y = t1.clientY - rect.top;
+      const s2x = t2.clientX - rect.left;
+      const s2y = t2.clientY - rect.top;
+
+      const curDist = Math.hypot(s2x - s1x, s2y - s1y);
+      if (this.pinchStartDist > 0) {
+        const factor = curDist / this.pinchStartDist;
+        const newZoom = Math.max(1e-5, Math.min(1e6, this.pinchStartZoom * factor));
+
+        const midX = (s1x + s2x) / 2;
+        const midY = (s1y + s2y) / 2;
+        const screenW = rect.width;
+        const screenH = rect.height;
+
+        this.renderer.camera.zoom = newZoom;
+        this.renderer.camera.centerX = this.pinchStartWorldMid.x - (midX - screenW / 2) / newZoom;
+        this.renderer.camera.centerY = this.pinchStartWorldMid.y + (midY - screenH / 2) / newZoom;
+
+        this.updateCursorScreen(midX, midY);
+        this.renderer.requestRender();
+      }
+    }
+  }
+
+  /**
+   * 移动端 Touch 触控：结束
+   */
+  private onTouchEnd(e: TouchEvent): void {
+    if (e.touches.length === 0) {
+      if (!this.touchHasMoved) {
+        // 单指轻触作为点击拾取或打点
+        this.updateCursorScreen(this.touchStartPos.x, this.touchStartPos.y);
+        this.triggerClickAction(0);
+      }
+      this.pinchStartDist = 0;
+    } else if (e.touches.length === 1) {
+      const rect = this.canvas.getBoundingClientRect();
+      const t = e.touches[0];
+      this.lastTouchPos = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+    }
+  }
+
   private updateCursor(e: MouseEvent): void {
     const rect = this.canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
+    this.updateCursorScreen(sx, sy);
+  }
 
+  private updateCursorScreen(sx: number, sy: number): void {
     this.renderer.cursorScreen = { x: sx, y: sy };
     const rawWorld = this.renderer.screenToWorld(sx, sy);
 
@@ -191,7 +312,7 @@ export class CameraController {
     }
   }
 
-  private handleClick(e: MouseEvent): void {
+  private triggerClickAction(button: number): void {
     const worldPos = this.renderer.cursorWorld;
 
     // 测量工具优先处理
@@ -205,7 +326,7 @@ export class CameraController {
     }
 
     // 实体选择模式
-    if (e.button === 0) {
+    if (button === 0) {
       const picked = this.renderer.pickEntity(worldPos);
       this.renderer.selectedEntity = picked;
       this.renderer.requestRender();

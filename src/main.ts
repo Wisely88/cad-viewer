@@ -57,6 +57,43 @@ const dropOverlay = document.getElementById('drop-overlay') as HTMLDivElement;
 const dwgModal = document.getElementById('dwg-modal') as HTMLDivElement;
 const btnCloseModal = document.getElementById('btn-close-modal') as HTMLButtonElement;
 
+// 移动端抽屉与遮罩
+const btnMobileLayers = document.getElementById('btn-mobile-layers') as HTMLButtonElement | null;
+const btnMobileInspector = document.getElementById('btn-mobile-inspector') as HTMLButtonElement | null;
+const btnCloseLayersDrawer = document.getElementById('btn-close-layers-drawer') as HTMLButtonElement | null;
+const btnCloseInspectorDrawer = document.getElementById('btn-close-inspector-drawer') as HTMLButtonElement | null;
+const leftLayersPanel = document.getElementById('left-layers-panel') as HTMLElement | null;
+const rightInspectorPanel = document.getElementById('right-inspector-panel') as HTMLElement | null;
+const mobileBackdrop = document.getElementById('mobile-backdrop') as HTMLDivElement | null;
+
+function closeAllDrawers(): void {
+  leftLayersPanel?.classList.remove('mobile-open');
+  rightInspectorPanel?.classList.remove('mobile-open');
+  mobileBackdrop?.classList.remove('active');
+}
+
+btnMobileLayers?.addEventListener('click', () => {
+  const isOpen = leftLayersPanel?.classList.contains('mobile-open');
+  closeAllDrawers();
+  if (!isOpen) {
+    leftLayersPanel?.classList.add('mobile-open');
+    mobileBackdrop?.classList.add('active');
+  }
+});
+
+btnMobileInspector?.addEventListener('click', () => {
+  const isOpen = rightInspectorPanel?.classList.contains('mobile-open');
+  closeAllDrawers();
+  if (!isOpen) {
+    rightInspectorPanel?.classList.add('mobile-open');
+    mobileBackdrop?.classList.add('active');
+  }
+});
+
+btnCloseLayersDrawer?.addEventListener('click', closeAllDrawers);
+btnCloseInspectorDrawer?.addEventListener('click', closeAllDrawers);
+mobileBackdrop?.addEventListener('click', closeAllDrawers);
+
 // 初始化渲染器
 const renderer = new CadRenderer(canvas);
 renderer.measureEngine = measureEngine;
@@ -455,3 +492,14 @@ window.addEventListener('drop', (e) => {
 
 // 默认直接载入机械法兰样例图，立即可见
 loadDxfContent(SAMPLE_MECHANICAL_FLANGE, 'mechanical-flange-pcd210.dxf');
+
+// 注册 PWA 离线 Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').then((reg) => {
+      console.log('PWA ServiceWorker registered with scope:', reg.scope);
+    }).catch((err) => {
+      console.warn('PWA ServiceWorker registration failed:', err);
+    });
+  });
+}

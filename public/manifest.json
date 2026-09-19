@@ -1,0 +1,19 @@
+{
+  "name": "CAD Web Viewer",
+  "short_name": "CADViewer",
+  "description": "轻量、零授权费、离线可用的本地 2D CAD (DXF) 查看器",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#181A1F",
+  "theme_color": "#282C34",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

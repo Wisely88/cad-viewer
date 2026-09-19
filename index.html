@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CAD Web Viewer — 本地 2D DXF/DWG 查看器</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CADViewer">
+  <meta name="theme-color" content="#282C34">
   <style>
     :root {
       --bg-canvas: #181A1F;
@@ -402,6 +409,103 @@
       justify-content: flex-end;
       margin-top: 16px;
     }
+
+    /* 移动端响应式布局与抽屉样式 */
+    .mobile-only {
+      display: none !important;
+    }
+
+    .panel-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    .mobile-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 45;
+      display: none;
+    }
+
+    .mobile-backdrop.active {
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      .mobile-only {
+        display: inline-flex !important;
+      }
+      .desktop-only {
+        display: none !important;
+      }
+
+      #header-toolbar {
+        height: auto;
+        min-height: 52px;
+        flex-wrap: wrap;
+        padding: 6px 8px;
+        gap: 6px;
+      }
+
+      .toolbar-left, .toolbar-center, .toolbar-right {
+        flex-wrap: wrap;
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      /* 治理规则 12：重要点击区域至少约 42px 高 */
+      .tool-btn, .tool-select {
+        min-height: 42px;
+        padding: 0 10px;
+        font-size: 13px;
+        touch-action: manipulation;
+      }
+
+      .sidebar-panel {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 85%;
+        max-width: 320px;
+        height: 100%;
+        z-index: 50;
+        box-shadow: 0 0 24px rgba(0, 0, 0, 0.8);
+        transform: translateX(-100%);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .sidebar-panel.right-panel {
+        right: 0;
+        left: auto;
+        transform: translateX(100%);
+      }
+
+      .sidebar-panel.mobile-open {
+        transform: translateX(0);
+      }
+
+      #status-bar {
+        font-size: 10px;
+        height: auto;
+        min-height: 32px;
+        flex-wrap: wrap;
+        padding: 4px 8px;
+        gap: 4px;
+      }
+
+      .status-left, .status-right {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -416,9 +520,10 @@
 
         <input type="file" id="file-input" accept=".dxf" style="display: none;">
         <button id="btn-open-file" class="tool-btn">📂 打开 DXF</button>
+        <button id="btn-mobile-layers" class="tool-btn mobile-only">📑 图层</button>
 
         <select id="sample-select" class="tool-select">
-          <option value="">⚙ 载入内置样例图纸...</option>
+          <option value="">⚙ 载入样例图纸...</option>
           <option value="FLANGE">机械法兰零件 (含螺栓块与标注)</option>
           <option value="ARCH">建筑户型图 (含多图层与门窗)</option>
           <option value="BULGE">凸度多段线与轮廓</option>
@@ -426,37 +531,42 @@
       </div>
 
       <div class="toolbar-center">
-        <button id="btn-fit-view" class="tool-btn" title="双击画布或点击居中全图">⛶ 全图居中</button>
+        <button id="btn-fit-view" class="tool-btn" title="双击画布或点击居中全图">⛶ 居中</button>
         <button id="btn-zoom-in" class="tool-btn">➕ 放大</button>
         <button id="btn-zoom-out" class="tool-btn">➖ 缩小</button>
-        <button id="btn-zoom-reset" class="tool-btn">1:1 重置</button>
+        <button id="btn-zoom-reset" class="tool-btn desktop-only">1:1 重置</button>
 
         <div class="tool-separator"></div>
 
         <button id="btn-tool-select" class="tool-btn active">👆 拾取</button>
         <button id="btn-tool-dist" class="tool-btn">📏 测距</button>
         <button id="btn-tool-angle" class="tool-btn">📐 测角</button>
-        <button id="btn-tool-clear" class="tool-btn" title="清除所有测量标注">🗑 清除测量</button>
+        <button id="btn-tool-clear" class="tool-btn" title="清除所有测量标注">🗑 清除</button>
       </div>
 
       <div class="toolbar-right">
-        <button id="btn-toggle-crosshair" class="tool-btn active" title="开关 AutoCAD 风格十字准星">🎯 十字光标</button>
-        <button id="btn-toggle-snap" class="tool-btn active" title="开关端点/中点/圆心吸附">🧲 特征吸附</button>
-        <button id="btn-toggle-theme" class="tool-btn">🌓 背景底色</button>
-        <button id="btn-dwg-help" class="tool-btn" style="color: var(--accent);">ℹ DWG 转换指引</button>
+        <button id="btn-mobile-inspector" class="tool-btn mobile-only">📋 属性</button>
+        <button id="btn-toggle-crosshair" class="tool-btn active desktop-only" title="开关 AutoCAD 风格十字准星">🎯 十字</button>
+        <button id="btn-toggle-snap" class="tool-btn active desktop-only" title="开关端点/中点/圆心吸附">🧲 吸附</button>
+        <button id="btn-toggle-theme" class="tool-btn">🌓 底色</button>
+        <button id="btn-dwg-help" class="tool-btn desktop-only" style="color: var(--accent);">ℹ DWG 指引</button>
       </div>
     </header>
 
     <!-- 主工作区 -->
     <main id="main-workspace">
+      <!-- 移动端暗色遮罩 -->
+      <div id="mobile-backdrop" class="mobile-backdrop"></div>
+
       <!-- 左侧图层管理器 -->
-      <aside class="sidebar-panel left-panel">
+      <aside id="left-layers-panel" class="sidebar-panel left-panel">
         <div class="panel-header">
           <span>图层列表 (<span id="layer-total-count">0</span>)</span>
-          <div style="display: flex; gap: 4px;">
+          <div style="display: flex; gap: 4px; align-items: center;">
             <button id="btn-layers-show-all" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 11px;">全显</button>
             <span style="color: var(--border-color);">|</span>
             <button id="btn-layers-hide-all" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 11px;">全隐</button>
+            <button id="btn-close-layers-drawer" class="panel-close-btn mobile-only" title="关闭图层抽屉">✕</button>
           </div>
         </div>
         <div id="layers-list-container" class="panel-content">
@@ -476,9 +586,10 @@
       </section>
 
       <!-- 右侧检查器 -->
-      <aside class="sidebar-panel right-panel">
+      <aside id="right-inspector-panel" class="sidebar-panel right-panel">
         <div class="panel-header">
           <span>实体检查器</span>
+          <button id="btn-close-inspector-drawer" class="panel-close-btn mobile-only" title="关闭属性抽屉">✕</button>
         </div>
         <div id="inspector-container" class="panel-content">
           <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">
