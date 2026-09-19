@@ -66,6 +66,8 @@ async function fetchWasmBinary(onProgress?: (msg: string) => void): Promise<Arra
   throw new Error(`无法载入 WebAssembly 引擎二进制文件: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 
+const yieldToMain = () => new Promise((resolve) => setTimeout(resolve, 30));
+
 /**
  * 将 DWG 二进制 ArrayBuffer 转换为标准 DXF 文本字符串
  */
@@ -76,17 +78,20 @@ export async function convertDwgBufferToDxfString(
   if (!isEngineReady()) {
     if (onProgress) {
       onProgress('正在载入 WebAssembly 解码引擎...');
+      await yieldToMain();
     }
     const wasmBytes = await fetchWasmBinary(onProgress);
 
     if (onProgress) {
       onProgress('正在编译与初始化 WebAssembly 引擎...');
+      await yieldToMain();
     }
     await initWasm(wasmBytes);
   }
 
   if (onProgress) {
     onProgress('正在解码 DWG 二进制图元...');
+    await yieldToMain();
   }
 
   const bytes = dwgBuffer instanceof Uint8Array ? dwgBuffer : new Uint8Array(dwgBuffer);
@@ -94,6 +99,7 @@ export async function convertDwgBufferToDxfString(
 
   if (onProgress) {
     onProgress('DWG 解码完成，正在准备图纸几何...');
+    await yieldToMain();
   }
 
   // 解码文本：优先 UTF-8，降级至 GBK / ASCII
