@@ -642,6 +642,22 @@
     </div>
   </div>
 
+  <!-- DWG 错误诊断模态框 -->
+  <div id="error-modal" class="modal-backdrop">
+    <div class="modal-box" style="max-width: 540px;">
+      <div class="modal-title" style="color: #ff5252; display: flex; align-items: center; gap: 8px;">
+        <span>⚠️ DWG 解析异常诊断</span>
+      </div>
+      <div class="modal-body" id="error-modal-body" style="font-size: 13px; line-height: 1.6;">
+        <!-- 动态注入诊断内容 -->
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button id="btn-copy-error" class="tool-btn" style="border: 1px solid var(--border-color); font-size: 12px;">📋 复制诊断日志</button>
+        <button id="btn-close-error-modal" class="tool-btn" style="background-color: var(--accent); color: #000; font-weight: 600;">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

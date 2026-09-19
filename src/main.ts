@@ -4,7 +4,7 @@
  */
 
 import { DxfParser } from './parser/dxf-parser.ts';
-import { convertDwgBufferToDxfString } from './parser/dwg-converter.ts';
+import { convertDwgBufferToDxfString, inspectDwgHeader, type DwgHeaderInfo } from './parser/dwg-converter.ts';
 import { CadRenderer } from './renderer/cad-renderer.ts';
 import { CameraController } from './renderer/camera-controller.ts';
 import { MeasureEngine } from './tools/measure-tool.ts';
@@ -57,6 +57,73 @@ const statusMessage = document.getElementById('status-message') as HTMLSpanEleme
 const dropOverlay = document.getElementById('drop-overlay') as HTMLDivElement;
 const dwgModal = document.getElementById('dwg-modal') as HTMLDivElement;
 const btnCloseModal = document.getElementById('btn-close-modal') as HTMLButtonElement;
+
+const errorModal = document.getElementById('error-modal') as HTMLDivElement;
+const errorModalBody = document.getElementById('error-modal-body') as HTMLDivElement;
+const btnCloseErrorModal = document.getElementById('btn-close-error-modal') as HTMLButtonElement;
+const btnCopyError = document.getElementById('btn-copy-error') as HTMLButtonElement;
+let lastDiagnosticText = '';
+
+function showErrorModal(file: File, headerInfo: DwgHeaderInfo | null, errorMsg: string): void {
+  const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+  const sizeKB = (file.size / 1024).toFixed(1);
+  const sizeText = file.size > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+  const verName = headerInfo ? `${headerInfo.versionName} [${headerInfo.versionCode}]` : '未知版本';
+
+  lastDiagnosticText = `[CAD Viewer DWG 解析诊断报告]
+图纸名称: ${file.name}
+文件体积: ${sizeText} (${file.size} 字节)
+版本识别: ${verName}
+浏览器代理: ${navigator.userAgent}
+报错信息: ${errorMsg}
+发生时间: ${new Date().toLocaleString()}`;
+
+  errorModalBody.innerHTML = `
+    <div style="background: rgba(255, 82, 82, 0.12); border-left: 3px solid #ff5252; padding: 10px 12px; margin-bottom: 12px; border-radius: 4px;">
+      <div style="font-weight: 600; color: #ff5252; margin-bottom: 4px;">⚠️ 解码引擎中断原因：</div>
+      <div style="word-break: break-all; font-family: monospace; font-size: 12px; color: var(--text-color);">${errorMsg}</div>
+    </div>
+
+    <div style="margin-bottom: 12px; font-size: 12px; color: var(--text-muted); line-height: 1.8;">
+      <div>📁 <strong>图纸名称：</strong>${file.name}</div>
+      <div>📦 <strong>文件体积：</strong>${sizeText}</div>
+      <div>🏷 <strong>DWG 版本：</strong>${verName}</div>
+    </div>
+
+    <div style="border-top: 1px solid var(--border-color); padding-top: 10px;">
+      <div style="font-weight: 600; margin-bottom: 6px; color: var(--accent);">💡 常见诊断与排查途径：</div>
+      <ol style="margin: 0; padding-left: 18px; color: var(--text-color); font-size: 12px; line-height: 1.7;">
+        <li><strong>天正/插件代理对象 (最常见)：</strong>如果施工图纸使用了“天正建筑 (TArch)”等 ObjectARX 插件绘制，纯前端标准引擎无法直接读取专有代理门窗/墙体。请在 CAD 中输入 <code>TXPOUT</code>（天正整图导出为标准 T3 格式）另存后打开。</li>
+        <li><strong>高版本或超大图纸：</strong>若包含超复杂 3D 实体或图纸超过 10MB，可在 Mac 电脑端使用系统级自由软件命令行转换：<br><code style="background: rgba(255,255,255,0.08); padding: 2px 5px; border-radius: 3px; user-select: all;">./scripts/dwg-convert.sh "${file.name}"</code></li>
+        <li><strong>导出为 DXF 格式：</strong>在 AutoCAD、中望或浩辰中将图纸「另存为」 <strong>AutoCAD 2004/2000 DXF</strong>，可 100% 顺畅秒开。</li>
+      </ol>
+    </div>
+  `;
+
+  errorModal.classList.add('active');
+}
+
+btnCloseErrorModal.addEventListener('click', () => {
+  errorModal.classList.remove('active');
+});
+
+errorModal.addEventListener('click', (e) => {
+  if (e.target === errorModal) {
+    errorModal.classList.remove('active');
+  }
+});
+
+btnCopyError.addEventListener('click', () => {
+  if (!lastDiagnosticText) return;
+  navigator.clipboard.writeText(lastDiagnosticText).then(() => {
+    btnCopyError.textContent = '✅ 已复制诊断信息';
+    setTimeout(() => {
+      btnCopyError.textContent = '📋 复制诊断日志';
+    }, 2000);
+  }).catch(() => {
+    alert('复制失败，请手动长按复制：\n\n' + lastDiagnosticText);
+  });
+});
 
 // 移动端抽屉与遮罩
 const btnMobileLayers = document.getElementById('btn-mobile-layers') as HTMLButtonElement | null;
@@ -354,9 +421,13 @@ async function handleIncomingFile(file: File): Promise<void> {
     };
     reader.readAsText(file);
   } else if (lower.endsWith('.dwg')) {
+    let headerInfo: DwgHeaderInfo | null = null;
     try {
       statusMessage.textContent = '正在读取 DWG 文件数据...';
       const arrayBuffer = await file.arrayBuffer();
+      headerInfo = inspectDwgHeader(arrayBuffer);
+      console.log('检测到 DWG 文件:', fileName, '版本:', headerInfo);
+
       const dxfString = await convertDwgBufferToDxfString(arrayBuffer, (msg) => {
         statusMessage.textContent = msg;
       });
@@ -364,10 +435,8 @@ async function handleIncomingFile(file: File): Promise<void> {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('DWG 解码失败:', err);
-      alert(
-        `DWG 解码失败: ${msg}\n\n可能原因：该 DWG 包含专有三维对象或版本高于 R2018。\n提示：在 Mac 电脑端可使用 ./scripts/dwg-convert.sh 尝试系统级转换。`
-      );
-      statusMessage.textContent = 'DWG 解码失败';
+      showErrorModal(file, headerInfo, msg);
+      statusMessage.textContent = 'DWG 解码中断 (已展开诊断详情)';
     }
   } else {
     alert('请选择或拖入 .dxf 或 .dwg 格式图纸文件。');

@@ -66,6 +66,46 @@ async function fetchWasmBinary(onProgress?: (msg: string) => void): Promise<Arra
   throw new Error(`无法载入 WebAssembly 引擎二进制文件: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 }
 
+export interface DwgHeaderInfo {
+  versionCode: string;
+  versionName: string;
+  isSupported: boolean;
+}
+
+/**
+ * 快速检查 DWG 文件的 Header Magic Bytes (前 6 字节)
+ */
+export function inspectDwgHeader(buffer: ArrayBuffer | Uint8Array): DwgHeaderInfo {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  if (bytes.length < 6) {
+    return { versionCode: 'INVALID', versionName: '文件过小或无效 (小于 6 字节)', isSupported: false };
+  }
+  let header = '';
+  for (let i = 0; i < 6; i++) {
+    header += String.fromCharCode(bytes[i]);
+  }
+
+  const versionMap: Record<string, { name: string; supported: boolean }> = {
+    'AC1032': { name: 'AutoCAD 2018 - 2026', supported: true },
+    'AC1027': { name: 'AutoCAD 2013 - 2017', supported: true },
+    'AC1024': { name: 'AutoCAD 2010 - 2012', supported: true },
+    'AC1021': { name: 'AutoCAD 2007 - 2009', supported: true },
+    'AC1018': { name: 'AutoCAD 2004 - 2006', supported: true },
+    'AC1015': { name: 'AutoCAD 2000 - 2002', supported: true },
+    'AC1014': { name: 'AutoCAD Release 14', supported: true },
+    'AC1012': { name: 'AutoCAD Release 13', supported: true },
+    'AC1009': { name: 'AutoCAD Release 11/12 (旧于 R13)', supported: false },
+    'AC1006': { name: 'AutoCAD Release 10 (旧于 R13)', supported: false },
+  };
+
+  const match = versionMap[header];
+  if (match) {
+    return { versionCode: header, versionName: match.name, isSupported: match.supported };
+  }
+
+  return { versionCode: header, versionName: `非标准或未知 DWG 版本 (${header})`, isSupported: false };
+}
+
 const yieldToMain = () => new Promise((resolve) => setTimeout(resolve, 30));
 
 /**
@@ -95,7 +135,19 @@ export async function convertDwgBufferToDxfString(
   }
 
   const bytes = dwgBuffer instanceof Uint8Array ? dwgBuffer : new Uint8Array(dwgBuffer);
-  const dxfBytes = convertDwgToDxf(bytes);
+  let dxfBytes: Uint8Array;
+  try {
+    dxfBytes = convertDwgToDxf(bytes);
+  } catch (err: unknown) {
+    const rawMsg = err instanceof Error ? err.message : String(err);
+    let hint = rawMsg;
+    if (rawMsg.includes('IO error') || rawMsg.includes('failed to fill')) {
+      hint = `二进制数据解析截断 (${rawMsg})：图纸包含天正建筑 (TArch) 等专有代理对象或未内嵌的外部参照`;
+    } else if (rawMsg.includes('unreachable') || rawMsg.includes('memory') || rawMsg.includes('RangeError')) {
+      hint = `WebAssembly 引擎内存溢出 (${rawMsg})：图纸实体量过大，超出手机浏览器内存配额`;
+    }
+    throw new Error(hint);
+  }
 
   if (onProgress) {
     onProgress('DWG 解码完成，正在准备图纸几何...');
