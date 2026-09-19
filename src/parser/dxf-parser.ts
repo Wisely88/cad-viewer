@@ -213,26 +213,47 @@ export class DxfParser {
   }
 
   /**
-   * 将 DXF 文本切分为 Code/Value 键值对数组
+   * 将 DXF 文本切分为 Code/Value 键值对数组 (零多余数组流式扫描，大幅降低手机端内存峰值)
    */
   private tokenize(content: string): DxfPair[] {
-    const rawLines = content.split(/\r\n|\r|\n/);
-    const lines: string[] = [];
-    for (let j = 0; j < rawLines.length; j++) {
-      const trimmed = rawLines[j].trim();
-      if (trimmed !== '') {
-        lines.push(trimmed);
-      }
-    }
-
     const pairs: DxfPair[] = [];
-    const len = lines.length;
+    let pos = 0;
+    const len = content.length;
+    let pendingCode: number | null = null;
 
-    for (let i = 0; i < len - 1; i += 2) {
-      const code = parseInt(lines[i], 10);
-      if (isNaN(code)) continue;
-      const value = lines[i + 1] ?? '';
-      pairs.push({ code, value });
+    while (pos < len) {
+      let nextPos = content.indexOf('\n', pos);
+      if (nextPos === -1) {
+        nextPos = len;
+      }
+
+      let endPos = nextPos;
+      if (endPos > pos && content.charCodeAt(endPos - 1) === 13) {
+        endPos--; // 剔除 \r
+      }
+
+      let startPos = pos;
+      while (startPos < endPos && content.charCodeAt(startPos) <= 32) {
+        startPos++;
+      }
+      while (endPos > startPos && content.charCodeAt(endPos - 1) <= 32) {
+        endPos--;
+      }
+
+      if (endPos > startPos) {
+        const line = content.substring(startPos, endPos);
+        if (pendingCode === null) {
+          const code = parseInt(line, 10);
+          if (!isNaN(code)) {
+            pendingCode = code;
+          }
+        } else {
+          pairs.push({ code: pendingCode, value: line });
+          pendingCode = null;
+        }
+      }
+
+      pos = nextPos + 1;
     }
 
     return pairs;
