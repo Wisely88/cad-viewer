@@ -1,0 +1,18 @@
+{
+  "name": "cad-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lightweight, zero-license-fee, pure-frontend 2D CAD (DXF/DWG) Web Viewer",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/**/*.test.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vite": "^6.2.0"
+  }
+}

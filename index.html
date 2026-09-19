@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAD Web Viewer — 本地 2D DXF/DWG 查看器</title>
+  <style>
+    :root {
+      --bg-canvas: #181A1F;
+      --bg-panel: #21252B;
+      --bg-header: #282C34;
+      --bg-hover: #2C313A;
+      --bg-active: #3A3F4B;
+      --border-color: #383D48;
+      --text-main: #ECEFF4;
+      --text-muted: #9DA5B4;
+      --accent: #00E5FF;
+      --accent-hover: #33EBFF;
+      --warning: #FFD700;
+      --font-mono: "Menlo", "Consolas", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-sans);
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+    }
+
+    #app-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 顶部工具栏 */
+    #header-toolbar {
+      height: 48px;
+      background-color: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      z-index: 10;
+    }
+
+    .toolbar-left, .toolbar-center, .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: 12px;
+      color: var(--accent);
+    }
+
+    .brand-badge {
+      font-size: 10px;
+      background-color: rgba(0, 229, 255, 0.15);
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+    }
+
+    .tool-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 32px;
+      padding: 0 10px;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-main);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .tool-btn:hover {
+      background-color: var(--bg-hover);
+      border-color: #4B5263;
+    }
+
+    .tool-btn.active {
+      background-color: rgba(0, 229, 255, 0.2);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .tool-select {
+      height: 32px;
+      padding: 0 8px;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-main);
+      font-size: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .tool-separator {
+      width: 1px;
+      height: 20px;
+      background-color: var(--border-color);
+      margin: 0 4px;
+    }
+
+    /* 主工作区 */
+    #main-workspace {
+      display: flex;
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 左右侧边栏 */
+    .sidebar-panel {
+      width: 280px;
+      background-color: var(--bg-panel);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      z-index: 5;
+      transition: width 0.2s ease;
+    }
+
+    .sidebar-panel.right-panel {
+      border-right: none;
+      border-left: 1px solid var(--border-color);
+    }
+
+    .panel-header {
+      height: 38px;
+      background-color: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    /* 图层列表样式 */
+    .layer-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      background-color: rgba(255, 255, 255, 0.02);
+      border: 1px solid transparent;
+      font-size: 12px;
+    }
+
+    .layer-item:hover {
+      background-color: var(--bg-hover);
+      border-color: var(--border-color);
+    }
+
+    .layer-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .layer-color-pill {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      flex-shrink: 0;
+    }
+
+    .layer-toggle-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .layer-toggle-btn.visible {
+      color: var(--accent);
+    }
+
+    .layer-count-badge {
+      font-size: 10px;
+      background-color: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      padding: 1px 5px;
+      border-radius: 10px;
+    }
+
+    /* 属性检查器样式 */
+    .prop-group {
+      margin-bottom: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 8px;
+    }
+
+    .prop-group-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .prop-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-family: var(--font-mono);
+    }
+
+    .prop-row:last-child {
+      border-bottom: none;
+    }
+
+    .prop-key {
+      color: var(--text-muted);
+    }
+
+    .prop-val {
+      color: var(--text-main);
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    /* 视口画布容器 */
+    #viewport-container {
+      flex: 1;
+      position: relative;
+      height: 100%;
+      background-color: var(--bg-canvas);
+    }
+
+    #cad-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+
+    /* 拖拽上传覆盖层 */
+    #drop-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(24, 26, 31, 0.85);
+      border: 2px dashed var(--accent);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    #drop-overlay.active {
+      display: flex;
+    }
+
+    .drop-text {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: 12px;
+    }
+
+    /* 底部状态栏 */
+    #status-bar {
+      height: 28px;
+      background-color: var(--bg-header);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      z-index: 10;
+    }
+
+    .status-left, .status-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .coord-display {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* 弹窗模态框 */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal-box {
+      width: 520px;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      padding: 20px;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 12px;
+    }
+
+    .modal-body {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .modal-body code {
+      font-family: var(--font-mono);
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+
+    .modal-body pre {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <!-- 顶部工具栏 -->
+    <header id="header-toolbar">
+      <div class="toolbar-left">
+        <div class="brand-title">
+          📐 CAD Viewer
+          <span class="brand-badge">DXF-First</span>
+        </div>
+
+        <input type="file" id="file-input" accept=".dxf" style="display: none;">
+        <button id="btn-open-file" class="tool-btn">📂 打开 DXF</button>
+
+        <select id="sample-select" class="tool-select">
+          <option value="">⚙ 载入内置样例图纸...</option>
+          <option value="FLANGE">机械法兰零件 (含螺栓块与标注)</option>
+          <option value="ARCH">建筑户型图 (含多图层与门窗)</option>
+          <option value="BULGE">凸度多段线与轮廓</option>
+        </select>
+      </div>
+
+      <div class="toolbar-center">
+        <button id="btn-fit-view" class="tool-btn" title="双击画布或点击居中全图">⛶ 全图居中</button>
+        <button id="btn-zoom-in" class="tool-btn">➕ 放大</button>
+        <button id="btn-zoom-out" class="tool-btn">➖ 缩小</button>
+        <button id="btn-zoom-reset" class="tool-btn">1:1 重置</button>
+
+        <div class="tool-separator"></div>
+
+        <button id="btn-tool-select" class="tool-btn active">👆 拾取</button>
+        <button id="btn-tool-dist" class="tool-btn">📏 测距</button>
+        <button id="btn-tool-angle" class="tool-btn">📐 测角</button>
+        <button id="btn-tool-clear" class="tool-btn" title="清除所有测量标注">🗑 清除测量</button>
+      </div>
+
+      <div class="toolbar-right">
+        <button id="btn-toggle-crosshair" class="tool-btn active" title="开关 AutoCAD 风格十字准星">🎯 十字光标</button>
+        <button id="btn-toggle-snap" class="tool-btn active" title="开关端点/中点/圆心吸附">🧲 特征吸附</button>
+        <button id="btn-toggle-theme" class="tool-btn">🌓 背景底色</button>
+        <button id="btn-dwg-help" class="tool-btn" style="color: var(--accent);">ℹ DWG 转换指引</button>
+      </div>
+    </header>
+
+    <!-- 主工作区 -->
+    <main id="main-workspace">
+      <!-- 左侧图层管理器 -->
+      <aside class="sidebar-panel left-panel">
+        <div class="panel-header">
+          <span>图层列表 (<span id="layer-total-count">0</span>)</span>
+          <div style="display: flex; gap: 4px;">
+            <button id="btn-layers-show-all" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 11px;">全显</button>
+            <span style="color: var(--border-color);">|</span>
+            <button id="btn-layers-hide-all" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 11px;">全隐</button>
+          </div>
+        </div>
+        <div id="layers-list-container" class="panel-content">
+          <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">
+            未加载图纸
+          </div>
+        </div>
+      </aside>
+
+      <!-- 视口画布 -->
+      <section id="viewport-container">
+        <canvas id="cad-canvas"></canvas>
+        <div id="drop-overlay">
+          <div style="font-size: 48px;">📥</div>
+          <div class="drop-text">释放鼠标，立即在本地查看 DXF 图纸</div>
+        </div>
+      </section>
+
+      <!-- 右侧检查器 -->
+      <aside class="sidebar-panel right-panel">
+        <div class="panel-header">
+          <span>实体检查器</span>
+        </div>
+        <div id="inspector-container" class="panel-content">
+          <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">
+            点击图纸中的实体以查看属性
+          </div>
+        </div>
+
+        <div class="panel-header" style="border-top: 1px solid var(--border-color);">
+          <span>测量结果记录 (<span id="measure-count">0</span>)</span>
+        </div>
+        <div id="measure-list-container" class="panel-content" style="max-height: 180px;">
+          <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 10px;">
+            暂无测量数据
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 底部状态栏 -->
+    <footer id="status-bar">
+      <div class="status-left">
+        <span id="status-message">就绪</span>
+        <span class="coord-display" id="coord-display">X: 0.00 mm  Y: 0.00 mm</span>
+      </div>
+      <div class="status-right">
+        <span id="zoom-level-display">缩放: 100%</span>
+        <span id="doc-summary-display">无图纸</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- DWG 转换指引模态框 -->
+  <div id="dwg-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-title">GNU LibreDWG 本地无授权费转换说明</div>
+      <div class="modal-body">
+        <p>本项目坚持<strong>100% 零授权费</strong>原则。QCAD Community Edition 的 DWG 转换属于商业专有插件；而 <strong>GNU LibreDWG</strong> 是纯自由开源软件 (GPLv3+)。</p>
+        <br>
+        <p><strong>1. 在 Mac 安装 LibreDWG：</strong></p>
+        <pre>brew install libredwg</pre>
+        <p><strong>2. 使用项目内置转换脚本：</strong></p>
+        <pre>./scripts/dwg-convert.sh sample.dwg</pre>
+        <p>转换后的 DXF 将保存在 <code>/tmp/cad-viewer/</code> 或当前目录，直接拖拽进本浏览器界面即可丝滑浏览。</p>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-close-modal" class="tool-btn" style="background-color: var(--accent); color: #000; font-weight: 600;">了解并关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
