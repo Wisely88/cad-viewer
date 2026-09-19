@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAD Web Viewer — 本地 2D DXF/DWG 查看器</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CADViewer">
+  <meta name="theme-color" content="#282C34">
+  <style>
+    :root {
+      --bg-canvas: #181A1F;
+      --bg-panel: #21252B;
+      --bg-header: #282C34;
+      --bg-hover: #2C313A;
+      --bg-active: #3A3F4B;
+      --border-color: #383D48;
+      --text-main: #ECEFF4;
+      --text-muted: #9DA5B4;
+      --accent: #00E5FF;
+      --accent-hover: #33EBFF;
+      --warning: #FFD700;
+      --font-mono: "Menlo", "Consolas", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: var(--font-sans);
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+    }
+
+    #app-container {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 顶部工具栏 */
+    #header-toolbar {
+      height: 48px;
+      background-color: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      z-index: 10;
+    }
+
+    .toolbar-left, .toolbar-center, .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: 12px;
+      color: var(--accent);
+    }
+
+    .brand-badge {
+      font-size: 10px;
+      background-color: rgba(0, 229, 255, 0.15);
+      color: var(--accent);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 229, 255, 0.3);
+    }
+
+    .tool-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 32px;
+      padding: 0 10px;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-main);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .tool-btn:hover {
+      background-color: var(--bg-hover);
+      border-color: #4B5263;
+    }
+
+    .tool-btn.active {
+      background-color: rgba(0, 229, 255, 0.2);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .tool-select {
+      height: 32px;
+      padding: 0 8px;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-main);
+      font-size: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .tool-separator {
+      width: 1px;
+      height: 20px;
+      background-color: var(--border-color);
+      margin: 0 4px;
+    }
+
+    /* 主工作区 */
+    #main-workspace {
+      display: flex;
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* 左右侧边栏 */
+    .sidebar-panel {
+      width: 280px;
+      background-color: var(--bg-panel);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      z-index: 5;
+      transition: width 0.2s ease;
+    }
+
+    .sidebar-panel.right-panel {
+      border-right: none;
+      border-left: 1px solid var(--border-color);
+    }
+
+    .panel-header {
+      height: 38px;
+      background-color: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    /* 图层列表样式 */
+    .layer-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 8px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      background-color: rgba(255, 255, 255, 0.02);
+      border: 1px solid transparent;
+      font-size: 12px;
+    }
+
+    .layer-item:hover {
+      background-color: var(--bg-hover);
+      border-color: var(--border-color);
+    }
+
+    .layer-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .layer-color-pill {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      flex-shrink: 0;
+    }
+
+    .layer-toggle-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .layer-toggle-btn.visible {
+      color: var(--accent);
+    }
+
+    .layer-count-badge {
+      font-size: 10px;
+      background-color: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      padding: 1px 5px;
+      border-radius: 10px;
+    }
+
+    .layer-solo-btn {
+      background: rgba(0, 229, 255, 0.08);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      border-radius: 3px;
+      color: var(--accent);
+      font-size: 10px;
+      padding: 1px 5px;
+      cursor: pointer;
+      opacity: 0.6;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .layer-solo-btn:hover {
+      opacity: 1;
+      background: rgba(0, 229, 255, 0.2);
+    }
+
+    /* 属性检查器样式 */
+    .prop-group {
+      margin-bottom: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 8px;
+    }
+
+    .prop-group-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .prop-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-family: var(--font-mono);
+    }
+
+    .prop-row:last-child {
+      border-bottom: none;
+    }
+
+    .prop-key {
+      color: var(--text-muted);
+    }
+
+    .prop-val {
+      color: var(--text-main);
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    /* 视口画布容器 */
+    #viewport-container {
+      flex: 1;
+      position: relative;
+      height: 100%;
+      background-color: var(--bg-canvas);
+    }
+
+    #cad-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+
+    /* 拖拽上传覆盖层 */
+    #drop-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(24, 26, 31, 0.85);
+      border: 2px dashed var(--accent);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    #drop-overlay.active {
+      display: flex;
+    }
+
+    .drop-text {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: 12px;
+    }
+
+    /* 底部状态栏 */
+    #status-bar {
+      height: 28px;
+      background-color: var(--bg-header);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      z-index: 10;
+    }
+
+    .status-left, .status-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .coord-display {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* 弹窗模态框 */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal-box {
+      width: 520px;
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      padding: 20px;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 12px;
+    }
+
+    .modal-body {
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .modal-body code {
+      font-family: var(--font-mono);
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent);
+    }
+
+    .modal-body pre {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    /* 移动端响应式布局与抽屉样式 */
+    .mobile-only {
+      display: none !important;
+    }
+
+    .panel-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    .mobile-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 45;
+      display: none;
+    }
+
+    .mobile-backdrop.active {
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      .mobile-only {
+        display: inline-flex !important;
+      }
+      .desktop-only {
+        display: none !important;
+      }
+
+      #header-toolbar {
+        height: auto;
+        min-height: 52px;
+        flex-wrap: wrap;
+        padding: 6px 8px;
+        gap: 6px;
+      }
+
+      .toolbar-left, .toolbar-center, .toolbar-right {
+        flex-wrap: wrap;
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      /* 治理规则 12：重要点击区域至少约 42px 高 */
+      .tool-btn, .tool-select {
+        min-height: 42px;
+        padding: 0 10px;
+        font-size: 13px;
+        touch-action: manipulation;
+      }
+
+      .sidebar-panel {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 85%;
+        max-width: 320px;
+        height: 100%;
+        z-index: 50;
+        box-shadow: 0 0 24px rgba(0, 0, 0, 0.8);
+        transform: translateX(-100%);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .sidebar-panel.right-panel {
+        right: 0;
+        left: auto;
+        transform: translateX(100%);
+      }
+
+      .sidebar-panel.mobile-open {
+        transform: translateX(0);
+      }
+
+      #status-bar {
+        font-size: 10px;
+        height: auto;
+        min-height: 32px;
+        flex-wrap: wrap;
+        padding: 4px 8px;
+        gap: 4px;
+      }
+
+      .status-left, .status-right {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/index-B0OqBdvc.js"></script>
+</head>
+<body>
+  <div id="app-container">
+    <!-- 顶部工具栏 -->
+    <header id="header-toolbar">
+      <div class="toolbar-left">
+        <div class="brand-title">
+          📐 CAD Viewer
+          <span class="brand-badge">DXF / DWG</span>
+        </div>
+
+        <input type="file" id="file-input" accept=".dxf,.dwg" style="display: none;">
+        <button id="btn-open-file" class="tool-btn">📂 打开图纸</button>
+        <button id="btn-close-file" class="tool-btn" style="display: none; color: #ff5252; font-weight: 600; border-color: rgba(255, 82, 82, 0.45); background: rgba(255, 82, 82, 0.08);" title="关闭并退出当前图纸 (快捷键: Esc)">✕ 关闭图纸</button>
+        <button id="btn-mobile-layers" class="tool-btn mobile-only">📑 图层</button>
+
+        <select id="sample-select" class="tool-select">
+          <option value="">⚙ 载入样例图纸...</option>
+          <option value="FLANGE">机械法兰零件 (含螺栓块与标注)</option>
+          <option value="ARCH">建筑户型图 (含多图层与门窗)</option>
+          <option value="BULGE">凸度多段线与轮廓</option>
+        </select>
+      </div>
+
+      <div class="toolbar-center">
+        <button id="btn-fit-focus" class="tool-btn" title="智能聚焦图纸主体核心区域 (快捷键: F)">🎯 聚焦主体</button>
+        <button id="btn-fit-full" class="tool-btn desktop-only" title="适应全图范围，包含游离外部参照 (快捷键: A)">⛶ 适应全图</button>
+        <button id="btn-fit-view" style="display: none;"></button>
+        <button id="btn-zoom-in" class="tool-btn">➕ 放大</button>
+        <button id="btn-zoom-out" class="tool-btn">➖ 缩小</button>
+        <button id="btn-zoom-reset" class="tool-btn desktop-only">1:1 重置</button>
+
+        <div class="tool-separator"></div>
+
+        <button id="btn-tool-select" class="tool-btn active">👆 拾取</button>
+        <button id="btn-tool-dist" class="tool-btn">📏 测距</button>
+        <button id="btn-tool-angle" class="tool-btn">📐 测角</button>
+        <button id="btn-tool-clear" class="tool-btn" title="清除所有测量标注">🗑 清除</button>
+      </div>
+
+      <div class="toolbar-right">
+        <button id="btn-mobile-inspector" class="tool-btn mobile-only">📋 属性</button>
+        <button id="btn-export-png" class="tool-btn" title="导出当前视图为高清 PNG 图片">📷 导出</button>
+        <button id="btn-fullscreen" class="tool-btn desktop-only" title="全屏查看图纸">⛶ 全屏</button>
+        <button id="btn-toggle-crosshair" class="tool-btn active desktop-only" title="开关 AutoCAD 风格十字准星">🎯 十字</button>
+        <button id="btn-toggle-snap" class="tool-btn active desktop-only" title="开关端点/中点/圆心吸附">🧲 吸附</button>
+        <button id="btn-toggle-theme" class="tool-btn">🌓 底色</button>
+        <button id="btn-dwg-help" class="tool-btn desktop-only" style="color: var(--accent);">ℹ DWG 引擎</button>
+      </div>
+    </header>
+
+    <!-- 主工作区 -->
+    <main id="main-workspace">
+      <!-- 移动端暗色遮罩 -->
+      <div id="mobile-backdrop" class="mobile-backdrop"></div>
+
+      <!-- 左侧图层管理器 -->
+      <aside id="left-layers-panel" class="sidebar-panel left-panel">
+        <div class="panel-header">
+          <span>图层列表 (<span id="layer-total-count">0</span>)</span>
+          <div style="display: flex; gap: 4px; align-items: center;">
+            <button id="btn-layers-show-all" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 11px;">全显</button>
+            <span style="color: var(--border-color);">|</span>
+            <button id="btn-layers-hide-all" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 11px;">全隐</button>
+            <button id="btn-close-layers-drawer" class="panel-close-btn mobile-only" title="关闭图层抽屉">✕</button>
+          </div>
+        </div>
+        <div class="layer-search-wrapper" style="padding: 6px 8px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 4px; background: var(--bg-panel);">
+          <input type="text" id="layer-search-input" placeholder="🔍 搜索图层名称..." style="flex: 1; height: 26px; background: var(--bg-canvas); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 8px; font-size: 11px; color: var(--text-main); outline: none;">
+          <button id="btn-clear-layer-search" style="display: none; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 0 4px;" title="清空搜索">✕</button>
+        </div>
+        <div id="layers-list-container" class="panel-content">
+          <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">
+            未加载图纸
+          </div>
+        </div>
+      </aside>
+
+      <!-- 视口画布 -->
+      <section id="viewport-container">
+        <canvas id="cad-canvas"></canvas>
+        <div id="drop-overlay">
+          <div style="font-size: 48px;">📥</div>
+          <div class="drop-text">释放鼠标，立即在本地查看 DXF / DWG 图纸</div>
+        </div>
+      </section>
+
+      <!-- 右侧检查器 -->
+      <aside id="right-inspector-panel" class="sidebar-panel right-panel">
+        <div class="panel-header">
+          <span>实体检查器</span>
+          <button id="btn-close-inspector-drawer" class="panel-close-btn mobile-only" title="关闭属性抽屉">✕</button>
+        </div>
+        <div id="inspector-container" class="panel-content">
+          <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">
+            点击图纸中的实体以查看属性
+          </div>
+        </div>
+
+        <div class="panel-header" style="border-top: 1px solid var(--border-color);">
+          <span>测量结果记录 (<span id="measure-count">0</span>)</span>
+        </div>
+        <div id="measure-list-container" class="panel-content" style="max-height: 180px;">
+          <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 10px;">
+            暂无测量数据
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 底部状态栏 -->
+    <footer id="status-bar">
+      <div class="status-left">
+        <span id="status-message">就绪</span>
+        <span class="coord-display" id="coord-display">X: 0.00 mm  Y: 0.00 mm</span>
+      </div>
+      <div class="status-right">
+        <span id="zoom-level-display">缩放: 100%</span>
+        <span id="doc-summary-display">无图纸</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- DWG 转换指引模态框 -->
+  <div id="dwg-modal" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-title">DWG 直接读取与自由引擎说明</div>
+      <div class="modal-body">
+        <p>本项目坚持<strong>100% 纯前端、零服务器上传、零授权费</strong>原则。</p>
+        <br>
+        <p><strong>✨ 方式一：浏览器端 WebAssembly 直接秒开（推荐）</strong></p>
+        <p>本系统已内置基于 Rust 编译的 <code>dwgdxf</code> (acadrust) WebAssembly 本地解析引擎。手机与电脑端均可直接点击“📂 打开图纸”选择 <code>.dwg</code> 文件，或直接拖拽进窗口，浏览器在内存中瞬间解码，全离线可用！</p>
+        <br>
+        <p><strong>🛠 方式二：复杂专有图纸本地 CLI 深度解析（备用）</strong></p>
+        <p>如遇到超出规范的复杂专有 3D 实体或版本高于 R2018 的图纸，可使用 GNU LibreDWG 进行深度转码：</p>
+        <pre>brew install libredwg
+./scripts/dwg-convert.sh sample.dwg</pre>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-close-modal" class="tool-btn" style="background-color: var(--accent); color: #000; font-weight: 600;">了解并关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DWG 错误诊断模态框 -->
+  <div id="error-modal" class="modal-backdrop">
+    <div class="modal-box" style="max-width: 540px;">
+      <div class="modal-title" style="color: #ff5252; display: flex; align-items: center; gap: 8px;">
+        <span>⚠️ DWG 解析异常诊断</span>
+      </div>
+      <div class="modal-body" id="error-modal-body" style="font-size: 13px; line-height: 1.6;">
+        <!-- 动态注入诊断内容 -->
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button id="btn-copy-error" class="tool-btn" style="border: 1px solid var(--border-color); font-size: 12px;">📋 复制诊断日志</button>
+        <button id="btn-close-error-modal" class="tool-btn" style="background-color: var(--accent); color: #000; font-weight: 600;">关闭</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
