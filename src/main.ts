@@ -40,9 +40,13 @@ const btnToggleCrosshair = document.getElementById('btn-toggle-crosshair') as HT
 const btnToggleSnap = document.getElementById('btn-toggle-snap') as HTMLButtonElement;
 const btnToggleTheme = document.getElementById('btn-toggle-theme') as HTMLButtonElement;
 const btnDwgHelp = document.getElementById('btn-dwg-help') as HTMLButtonElement;
+const btnExportPng = document.getElementById('btn-export-png') as HTMLButtonElement | null;
+const btnFullscreen = document.getElementById('btn-fullscreen') as HTMLButtonElement | null;
 
 const layersContainer = document.getElementById('layers-list-container') as HTMLDivElement;
 const layerTotalCount = document.getElementById('layer-total-count') as HTMLSpanElement;
+const layerSearchInput = document.getElementById('layer-search-input') as HTMLInputElement | null;
+const btnClearLayerSearch = document.getElementById('btn-clear-layer-search') as HTMLButtonElement | null;
 const btnLayersShowAll = document.getElementById('btn-layers-show-all') as HTMLButtonElement;
 const btnLayersHideAll = document.getElementById('btn-layers-hide-all') as HTMLButtonElement;
 
@@ -202,6 +206,13 @@ function loadDxfContent(content: string, fileName: string): void {
     measureEngine.clear();
     renderMeasurementList();
 
+    if (layerSearchInput) {
+      layerSearchInput.value = '';
+    }
+    if (btnClearLayerSearch) {
+      btnClearLayerSearch.style.display = 'none';
+    }
+
     if (btnCloseFile) {
       btnCloseFile.style.display = 'inline-flex';
     }
@@ -225,6 +236,13 @@ function unloadDocument(): void {
   measureEngine.clear();
   renderMeasurementList();
 
+  if (layerSearchInput) {
+    layerSearchInput.value = '';
+  }
+  if (btnClearLayerSearch) {
+    btnClearLayerSearch.style.display = 'none';
+  }
+
   layerTotalCount.textContent = '0';
   layersContainer.innerHTML = `
     <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">
@@ -243,13 +261,21 @@ function unloadDocument(): void {
 }
 
 /**
- * 渲染左侧图层列表面板
+ * 渲染左侧图层列表面板（支持即时过滤与独占仅看）
  */
-function renderLayersPanel(doc: DxfDocument): void {
+function renderLayersPanel(doc: DxfDocument, filterText: string = ''): void {
+  const query = filterText.trim().toLowerCase();
   layerTotalCount.textContent = doc.layers.size.toString();
   layersContainer.innerHTML = '';
 
+  let matchedCount = 0;
+
   doc.layers.forEach((layer) => {
+    if (query && !layer.name.toLowerCase().includes(query)) {
+      return;
+    }
+    matchedCount++;
+
     const item = document.createElement('div');
     item.className = 'layer-item';
 
@@ -271,11 +297,25 @@ function renderLayersPanel(doc: DxfDocument): void {
     const right = document.createElement('div');
     right.style.display = 'flex';
     right.style.alignItems = 'center';
-    right.style.gap = '6px';
+    right.style.gap = '5px';
 
     const countBadge = document.createElement('span');
     countBadge.className = 'layer-count-badge';
     countBadge.textContent = (layer.entityCount || 0).toString();
+
+    // 独占孤立「仅看」按钮
+    const soloBtn = document.createElement('button');
+    soloBtn.className = 'layer-solo-btn';
+    soloBtn.textContent = '仅看';
+    soloBtn.title = `只显示图层「${layer.name}」，隐藏其他所有图层`;
+    soloBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      doc.layers.forEach((l) => {
+        l.visible = l.name === layer.name;
+      });
+      renderLayersPanel(doc, layerSearchInput?.value || '');
+      renderer.requestRender();
+    });
 
     const toggleBtn = document.createElement('button');
     toggleBtn.className = `layer-toggle-btn ${layer.visible ? 'visible' : ''}`;
@@ -291,12 +331,21 @@ function renderLayersPanel(doc: DxfDocument): void {
     });
 
     right.appendChild(countBadge);
+    right.appendChild(soloBtn);
     right.appendChild(toggleBtn);
 
     item.appendChild(left);
     item.appendChild(right);
     layersContainer.appendChild(item);
   });
+
+  if (matchedCount === 0 && doc.layers.size > 0) {
+    layersContainer.innerHTML = `
+      <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">
+        未找到匹配「${filterText}」的图层
+      </div>
+    `;
+  }
 }
 
 /**
@@ -574,17 +623,83 @@ dwgModal.addEventListener('click', (e) => {
 
 // 图层全显与全隐
 btnLayersShowAll.addEventListener('click', () => {
-  if (!renderer.getDocument()) return;
-  renderer.getDocument()!.layers.forEach((l) => (l.visible = true));
-  renderLayersPanel(renderer.getDocument()!);
+  const doc = renderer.getDocument();
+  if (!doc) return;
+  doc.layers.forEach((l) => (l.visible = true));
+  renderLayersPanel(doc, layerSearchInput?.value || '');
   renderer.requestRender();
 });
 
 btnLayersHideAll.addEventListener('click', () => {
-  if (!renderer.getDocument()) return;
-  renderer.getDocument()!.layers.forEach((l) => (l.visible = false));
-  renderLayersPanel(renderer.getDocument()!);
+  const doc = renderer.getDocument();
+  if (!doc) return;
+  doc.layers.forEach((l) => (l.visible = false));
+  renderLayersPanel(doc, layerSearchInput?.value || '');
   renderer.requestRender();
+});
+
+// 图层名称即时搜索与过滤
+layerSearchInput?.addEventListener('input', () => {
+  const doc = renderer.getDocument();
+  const val = layerSearchInput.value;
+  if (btnClearLayerSearch) {
+    btnClearLayerSearch.style.display = val ? 'inline-block' : 'none';
+  }
+  if (doc) {
+    renderLayersPanel(doc, val);
+  }
+});
+
+btnClearLayerSearch?.addEventListener('click', () => {
+  if (layerSearchInput) {
+    layerSearchInput.value = '';
+    btnClearLayerSearch.style.display = 'none';
+    const doc = renderer.getDocument();
+    if (doc) {
+      renderLayersPanel(doc, '');
+    }
+  }
+});
+
+// 全屏查看切换
+btnFullscreen?.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch((err) => {
+      console.warn('全屏请求被阻止或不支持:', err);
+    });
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  if (btnFullscreen) {
+    btnFullscreen.textContent = document.fullscreenElement ? '🗗 退出全屏' : '⛶ 全屏';
+    btnFullscreen.classList.toggle('active', !!document.fullscreenElement);
+  }
+  setTimeout(() => renderer.updateSize(), 80);
+});
+
+// 导出高清图片 (PNG)
+btnExportPng?.addEventListener('click', () => {
+  if (!renderer.getDocument()) {
+    alert('请先打开或载入 CAD 图纸后再导出图片。');
+    return;
+  }
+  try {
+    const dataUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    const docName = docSummaryDisplay.textContent?.split('|')[0]?.trim() || 'cad-drawing';
+    a.download = `${docName.replace(/\.[^/.]+$/, '')}-view.png`;
+    a.href = dataUrl;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    statusMessage.textContent = '已导出当前视图图片 (PNG)';
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    alert(`导出图片失败: ${msg}`);
+  }
 });
 
 // 文件拖放 (Drag & Drop)

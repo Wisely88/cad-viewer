@@ -249,13 +249,34 @@ export class DxfParser {
       }
     }
 
-    // 展开所有 INSERT 实体（基于 3x3 仿射矩阵递归展开 BLOCK 并计算几何变换）
+    // 展开所有 INSERT 实体（基于 3x3 仿射矩阵递归展开 BLOCK 并计算几何变换）及 DIMENSION 关联匿名块
     const flattenedEntities: DxfEntity[] = [];
     for (const ent of rawEntities) {
       if (ent.type === 'INSERT') {
         const expanded = this.expandInsert(ent as InsertEntity, blocks, 0);
         for (let j = 0; j < expanded.length; j++) {
           flattenedEntities.push(expanded[j]);
+        }
+      } else if (ent.type === 'DIMENSION') {
+        const dim = ent as DimensionEntity;
+        if (dim.blockName && blocks.has(dim.blockName)) {
+          // DIMENSION 关联匿名块（通常为 *D1, *D2 等）包含了精确的尺寸线、箭头与标注文字
+          const syntheticInsert: InsertEntity = {
+            type: 'INSERT',
+            layer: dim.layer,
+            blockName: dim.blockName,
+            position: { x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+            rotation: 0,
+            color: dim.color,
+            colorIndex: dim.colorIndex
+          };
+          const expanded = this.expandInsert(syntheticInsert, blocks, 0);
+          for (let j = 0; j < expanded.length; j++) {
+            flattenedEntities.push(expanded[j]);
+          }
+        } else {
+          flattenedEntities.push(ent);
         }
       } else {
         flattenedEntities.push(ent);
@@ -1339,6 +1360,22 @@ export class DxfParser {
             color: resolvedColor,
             colorIndex: resolvedColorIndex,
             points: transformedPts
+          });
+          break;
+        }
+
+        case 'SPLINE': {
+          const sp = child as SplineEntity;
+          const transformedPts = sp.controlPoints.map(p => {
+            const tp = currentMatrix.transformPoint(p);
+            return { x: tp.x, y: tp.y, z: p.z };
+          });
+          expandedList.push({
+            ...sp,
+            layer: resolvedLayer,
+            color: resolvedColor,
+            colorIndex: resolvedColorIndex,
+            controlPoints: transformedPts
           });
           break;
         }

@@ -468,4 +468,148 @@ EOF
       assert.ok(Math.abs(arc.endAngle - 180) < 1e-3, `Expected endAngle ~ 180, got ${arc.endAngle}`);
     }
   });
+
+  it('should automatically expand DIMENSION anonymous block into wireframe entities', () => {
+    const dimDxf = `
+0
+SECTION
+2
+BLOCKS
+0
+BLOCK
+2
+*D1
+10
+0.0
+20
+0.0
+30
+0.0
+0
+LINE
+8
+DIMS
+10
+10.0
+20
+20.0
+11
+50.0
+21
+20.0
+0
+MTEXT
+8
+DIMS
+10
+30.0
+20
+25.0
+40
+3.5
+1
+40.00
+0
+ENDBLK
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+DIMENSION
+8
+DIMS
+2
+*D1
+10
+30.0
+20
+25.0
+11
+30.0
+21
+25.0
+0
+ENDSEC
+0
+EOF
+`;
+    const doc = parser.parse(dimDxf);
+    // DIMENSION 实体关联了 *D1 块，应被自动展开为 LINE 与 MTEXT
+    assert.strictEqual(doc.entities.length, 2);
+    const types = doc.entities.map(e => e.type);
+    assert.ok(types.includes('LINE'));
+    assert.ok(types.includes('MTEXT'));
+    assert.strictEqual(doc.entities[0].layer, 'DIMS');
+  });
+
+  it('should transform SPLINE entities inside an INSERT block', () => {
+    const splineBlockDxf = `
+0
+SECTION
+2
+BLOCKS
+0
+BLOCK
+2
+SPLINE_BLK
+10
+0.0
+20
+0.0
+30
+0.0
+0
+SPLINE
+8
+0
+10
+0.0
+20
+0.0
+10
+10.0
+20
+10.0
+0
+ENDBLK
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+INSERT
+2
+SPLINE_BLK
+10
+50.0
+20
+50.0
+41
+2.0
+42
+2.0
+0
+ENDSEC
+0
+EOF
+`;
+    const doc = parser.parse(splineBlockDxf);
+    assert.strictEqual(doc.entities.length, 1);
+    const sp = doc.entities[0];
+    assert.strictEqual(sp.type, 'SPLINE');
+    if (sp.type === 'SPLINE') {
+      assert.strictEqual(sp.controlPoints.length, 2);
+      // (0,0) * 2 + 50 = (50, 50)
+      assert.strictEqual(sp.controlPoints[0].x, 50);
+      assert.strictEqual(sp.controlPoints[0].y, 50);
+      // (10,10) * 2 + 50 = (70, 70)
+      assert.strictEqual(sp.controlPoints[1].x, 70);
+      assert.strictEqual(sp.controlPoints[1].y, 70);
+    }
+  });
 });

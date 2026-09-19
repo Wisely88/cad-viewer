@@ -234,6 +234,24 @@
       border-radius: 10px;
     }
 
+    .layer-solo-btn {
+      background: rgba(0, 229, 255, 0.08);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      border-radius: 3px;
+      color: var(--accent);
+      font-size: 10px;
+      padding: 1px 5px;
+      cursor: pointer;
+      opacity: 0.6;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .layer-solo-btn:hover {
+      opacity: 1;
+      background: rgba(0, 229, 255, 0.2);
+    }
+
     /* 属性检查器样式 */
     .prop-group {
       margin-bottom: 12px;
@@ -547,6 +565,8 @@
 
       <div class="toolbar-right">
         <button id="btn-mobile-inspector" class="tool-btn mobile-only">📋 属性</button>
+        <button id="btn-export-png" class="tool-btn" title="导出当前视图为高清 PNG 图片">📷 导出</button>
+        <button id="btn-fullscreen" class="tool-btn desktop-only" title="全屏查看图纸">⛶ 全屏</button>
         <button id="btn-toggle-crosshair" class="tool-btn active desktop-only" title="开关 AutoCAD 风格十字准星">🎯 十字</button>
         <button id="btn-toggle-snap" class="tool-btn active desktop-only" title="开关端点/中点/圆心吸附">🧲 吸附</button>
         <button id="btn-toggle-theme" class="tool-btn">🌓 底色</button>
@@ -569,6 +589,10 @@
             <button id="btn-layers-hide-all" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 11px;">全隐</button>
             <button id="btn-close-layers-drawer" class="panel-close-btn mobile-only" title="关闭图层抽屉">✕</button>
           </div>
+        </div>
+        <div class="layer-search-wrapper" style="padding: 6px 8px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 4px; background: var(--bg-panel);">
+          <input type="text" id="layer-search-input" placeholder="🔍 搜索图层名称..." style="flex: 1; height: 26px; background: var(--bg-canvas); border: 1px solid var(--border-color); border-radius: 4px; padding: 0 8px; font-size: 11px; color: var(--text-main); outline: none;">
+          <button id="btn-clear-layer-search" style="display: none; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; padding: 0 4px;" title="清空搜索">✕</button>
         </div>
         <div id="layers-list-container" class="panel-content">
           <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">
