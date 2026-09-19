@@ -172,7 +172,9 @@ export class DxfParser {
     for (const ent of rawEntities) {
       if (ent.type === 'INSERT') {
         const expanded = this.expandInsert(ent as InsertEntity, blocks, 0);
-        flattenedEntities.push(...expanded);
+        for (let j = 0; j < expanded.length; j++) {
+          flattenedEntities.push(expanded[j]);
+        }
       } else {
         flattenedEntities.push(ent);
       }
@@ -873,17 +875,21 @@ export class DxfParser {
 
   /**
    * 递归展开 INSERT 实体（复合仿射变换：平移 * 旋转 * 缩放）
-   * 包含防死循环递归深度限制 (最大深度 16)
+   * 包含防死循环递归深度限制 (最大深度 8) 与环状引用检测
    */
   private expandInsert(
     insert: InsertEntity,
     blocks: Map<string, DxfBlock>,
-    depth: number
+    depth: number,
+    visitedBlocks: Set<string> = new Set()
   ): DxfEntity[] {
-    if (depth > 16) return [];
+    if (depth > 8 || visitedBlocks.has(insert.blockName)) return [];
 
     const block = blocks.get(insert.blockName);
     if (!block || !block.entities.length) return [];
+
+    const currentVisited = new Set(visitedBlocks);
+    currentVisited.add(insert.blockName);
 
     const rad = (insert.rotation * Math.PI) / 180;
     const cosR = Math.cos(rad);
@@ -1029,8 +1035,10 @@ export class DxfParser {
             },
             rotation: (nestedInsert.rotation + insert.rotation) % 360
           };
-          const nestedExpanded = this.expandInsert(synthesizedInsert, blocks, depth + 1);
-          expandedList.push(...nestedExpanded);
+          const nestedExpanded = this.expandInsert(synthesizedInsert, blocks, depth + 1, currentVisited);
+          for (let k = 0; k < nestedExpanded.length; k++) {
+            expandedList.push(nestedExpanded[k]);
+          }
           break;
         }
 

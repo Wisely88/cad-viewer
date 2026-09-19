@@ -214,4 +214,94 @@ EOF
     assert.strictEqual(isAngleBetween(30, 300, 60), true);
     assert.strictEqual(isAngleBetween(180, 300, 60), false);
   });
+
+  it('should handle massive entity collections (>70,000) without Maximum call stack size exceeded', () => {
+    // 构造包含 80,000 个实体的超大块定义，验证不会因扩展运算符 spread 导致函数调用栈溢出
+    const lines: string[] = [
+      '0', 'SECTION',
+      '2', 'BLOCKS',
+      '0', 'BLOCK',
+      '2', 'MASSIVE_BLOCK',
+      '10', '0.0', '20', '0.0', '30', '0.0'
+    ];
+
+    const entityCount = 75000;
+    for (let i = 0; i < entityCount; i++) {
+      lines.push('0', 'LINE', '8', '0', '10', `${i}`, '20', '0.0', '11', `${i + 1}`, '21', '1.0');
+    }
+
+    lines.push('0', 'ENDBLK', '0', 'ENDSEC');
+    lines.push('0', 'SECTION', '2', 'ENTITIES');
+    lines.push('0', 'INSERT', '2', 'MASSIVE_BLOCK', '10', '0.0', '20', '0.0', '30', '0.0');
+    lines.push('0', 'ENDSEC', '0', 'EOF');
+
+    const bigDxf = lines.join('\n');
+    assert.doesNotThrow(() => {
+      const doc = parser.parse(bigDxf);
+      assert.strictEqual(doc.entities.length, entityCount);
+    });
+  });
+
+  it('should prevent stack overflow on circular block references (Block A referencing Block A)', () => {
+    const circularDxf = `
+0
+SECTION
+2
+BLOCKS
+0
+BLOCK
+2
+RECURSIVE_BLOCK
+10
+0.0
+20
+0.0
+30
+0.0
+0
+LINE
+8
+0
+10
+0.0
+20
+0.0
+11
+10.0
+21
+0.0
+0
+INSERT
+2
+RECURSIVE_BLOCK
+10
+10.0
+20
+0.0
+0
+ENDBLK
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+INSERT
+2
+RECURSIVE_BLOCK
+10
+0.0
+20
+0.0
+0
+ENDSEC
+0
+EOF
+`;
+    assert.doesNotThrow(() => {
+      const doc = parser.parse(circularDxf);
+      assert.ok(doc.entities.length >= 1);
+    });
+  });
 });
