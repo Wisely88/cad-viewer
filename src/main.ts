@@ -4,6 +4,7 @@
  */
 
 import { DxfParser } from './parser/dxf-parser.ts';
+import { convertDwgBufferToDxfString } from './parser/dwg-converter.ts';
 import { CadRenderer } from './renderer/cad-renderer.ts';
 import { CameraController } from './renderer/camera-controller.ts';
 import { MeasureEngine } from './tools/measure-tool.ts';
@@ -337,16 +338,47 @@ function setActiveToolButton(btn: HTMLButtonElement): void {
 // 事件绑定
 btnOpenFile.addEventListener('click', () => fileInput.click());
 
+/**
+ * 统一处理外部传入的文件 (自动识别并支持 DXF 与 DWG 双格式直接读取)
+ */
+async function handleIncomingFile(file: File): Promise<void> {
+  const fileName = file.name;
+  const lower = fileName.toLowerCase();
+
+  if (lower.endsWith('.dxf')) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        loadDxfContent(reader.result, fileName);
+      }
+    };
+    reader.readAsText(file);
+  } else if (lower.endsWith('.dwg')) {
+    try {
+      statusMessage.textContent = '正在读取 DWG 文件数据...';
+      const arrayBuffer = await file.arrayBuffer();
+      const dxfString = await convertDwgBufferToDxfString(arrayBuffer, (msg) => {
+        statusMessage.textContent = msg;
+      });
+      loadDxfContent(dxfString, fileName);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('DWG 解码失败:', err);
+      alert(
+        `DWG 解码失败: ${msg}\n\n可能原因：该 DWG 包含专有三维对象或版本高于 R2018。\n提示：在 Mac 电脑端可使用 ./scripts/dwg-convert.sh 尝试系统级转换。`
+      );
+      statusMessage.textContent = 'DWG 解码失败';
+    }
+  } else {
+    alert('请选择或拖入 .dxf 或 .dwg 格式图纸文件。');
+  }
+}
+
 fileInput.addEventListener('change', (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    if (typeof reader.result === 'string') {
-      loadDxfContent(reader.result, file.name);
-    }
-  };
-  reader.readAsText(file);
+  handleIncomingFile(file);
+  fileInput.value = '';
 });
 
 // 样例选择
@@ -471,23 +503,7 @@ window.addEventListener('drop', (e) => {
   dropOverlay.classList.remove('active');
   const file = e.dataTransfer?.files?.[0];
   if (!file) return;
-
-  const fileName = file.name.toLowerCase();
-  if (fileName.endsWith('.dxf')) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        loadDxfContent(reader.result, file.name);
-      }
-    };
-    reader.readAsText(file);
-  } else if (fileName.endsWith('.dwg')) {
-    alert(
-      `检测到 DWG 二进制格式文件: ${file.name}。\n\n请在终端中使用配套的自由软件转换脚本转换为 DXF：\n./scripts/dwg-convert.sh "${file.name}"\n转换后拖入本窗口即可查看。`
-    );
-  } else {
-    alert('请选择或拖入 .dxf 格式文件。');
-  }
+  handleIncomingFile(file);
 });
 
 // 默认直接载入机械法兰样例图，立即可见

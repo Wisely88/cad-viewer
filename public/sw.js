@@ -3,13 +3,15 @@
  * 采用 Cache-First 策略，确保手机断网、离线或飞行模式下依然可秒开使用
  */
 
-const CACHE_NAME = 'cad-viewer-v1';
+const CACHE_NAME = 'cad-viewer-v2';
 
 const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg'
+  './icon.svg',
+  './wasm/dwgdxf_bg.wasm',
+  './wasm/dwgdxf.js'
 ];
 
 self.addEventListener('install', (event) => {
