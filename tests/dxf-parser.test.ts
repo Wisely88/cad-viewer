@@ -612,4 +612,123 @@ EOF
       assert.strictEqual(sp.controlPoints[1].y, 70);
     }
   });
+
+  it('should parse HEADER variables $EXTMIN and $EXTMAX and set headerExtents and focusBoundingBox', () => {
+    const dxfWithHeader = `
+0
+SECTION
+2
+HEADER
+9
+$EXTMIN
+10
+100.0
+20
+200.0
+30
+0.0
+9
+$EXTMAX
+10
+500.0
+20
+600.0
+30
+0.0
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+LINE
+8
+0
+10
+100.0
+20
+200.0
+11
+500.0
+21
+600.0
+0
+ENDSEC
+0
+EOF
+`;
+    const doc = parser.parse(dxfWithHeader);
+    assert.ok(doc.headerExtents, 'headerExtents should exist');
+    assert.strictEqual(doc.headerExtents?.minX, 100);
+    assert.strictEqual(doc.headerExtents?.minY, 200);
+    assert.strictEqual(doc.headerExtents?.maxX, 500);
+    assert.strictEqual(doc.headerExtents?.maxY, 600);
+    assert.strictEqual(doc.focusBoundingBox?.minX, 100);
+    assert.strictEqual(doc.focusBoundingBox?.maxX, 500);
+  });
+
+  it('should maintain DIMENSION anonymous block world coordinates without false offset', () => {
+    const dimDxf = `
+0
+SECTION
+2
+BLOCKS
+0
+BLOCK
+2
+*D100
+10
+5000.0
+20
+8000.0
+30
+0.0
+0
+LINE
+8
+0
+10
+5000.0
+20
+8000.0
+11
+5500.0
+21
+8000.0
+0
+ENDBLK
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+DIMENSION
+2
+*D100
+8
+DIM_LAYER
+10
+0.0
+20
+0.0
+0
+ENDSEC
+0
+EOF
+`;
+    const doc = parser.parse(dimDxf);
+    assert.strictEqual(doc.entities.length, 1);
+    const line = doc.entities[0];
+    assert.strictEqual(line.type, 'LINE');
+    if (line.type === 'LINE') {
+      // 实体坐标应保持世界坐标 (5000, 8000) 到 (5500, 8000)，不得被错误减去基准点变为 (0, 0) 到 (500, 0)
+      assert.ok(Math.abs(line.start.x - 5000) < 1e-4, `Expected start.x ~ 5000, got ${line.start.x}`);
+      assert.ok(Math.abs(line.start.y - 8000) < 1e-4, `Expected start.y ~ 8000, got ${line.start.y}`);
+      assert.ok(Math.abs(line.end.x - 5500) < 1e-4, `Expected end.x ~ 5500, got ${line.end.x}`);
+    }
+  });
 });
+

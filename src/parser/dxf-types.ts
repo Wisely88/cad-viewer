@@ -173,6 +173,8 @@ export interface DxfDocument {
   blocks: Map<string, DxfBlock>;
   entities: DxfEntity[];
   boundingBox: BoundingBox;
+  headerExtents?: BoundingBox;
+  focusBoundingBox?: BoundingBox;
   fileName?: string;
   version?: string;
 }

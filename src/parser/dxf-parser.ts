@@ -22,10 +22,11 @@ import type {
   SplineEntity,
   SolidEntity,
   Face3DEntity,
-  Point3D
+  Point3D,
+  BoundingBox
 } from './dxf-types.ts';
 import { getColorFromAci } from './dxf-types.ts';
-import { computeBoundingBox, computeEntityBoundingBox } from './bounding-box.ts';
+import { computeBoundingBox, computeEntityBoundingBox, computeFocusBoundingBox } from './bounding-box.ts';
 
 interface DxfPair {
   code: number;
@@ -223,6 +224,9 @@ export class DxfParser {
     let i = 0;
     const len = pairs.length;
 
+    let headerExtents: BoundingBox | undefined = undefined;
+    let version: string | undefined = undefined;
+
     while (i < len) {
       const p = pairs[i];
       if (p.code === 0 && p.value === 'SECTION') {
@@ -230,7 +234,12 @@ export class DxfParser {
         if (i < len && pairs[i].code === 2) {
           const sectionName = pairs[i].value;
           i++;
-          if (sectionName === 'TABLES') {
+          if (sectionName === 'HEADER') {
+            const res = this.parseHeader(pairs, i);
+            headerExtents = res.headerExtents;
+            if (res.version) version = res.version;
+            i = res.nextIndex;
+          } else if (sectionName === 'TABLES') {
             i = this.parseTables(pairs, i, layers);
           } else if (sectionName === 'BLOCKS') {
             i = this.parseBlocks(pairs, i, blocks);
@@ -260,12 +269,18 @@ export class DxfParser {
       } else if (ent.type === 'DIMENSION') {
         const dim = ent as DimensionEntity;
         if (dim.blockName && blocks.has(dim.blockName)) {
-          // DIMENSION 关联匿名块（通常为 *D1, *D2 等）包含了精确的尺寸线、箭头与标注文字
+          const dimBlock = blocks.get(dim.blockName)!;
+          // AutoCAD 中 DIMENSION 关联匿名块 (*D1, *D2 等) 内部图元已经是在 WCS 世界坐标系
+          // 合成 INSERT 的 position 必须设定为 dimBlock.basePoint，使 T(pos) * T(-basePoint) 刚好对消 (net displacement = 0)
           const syntheticInsert: InsertEntity = {
             type: 'INSERT',
             layer: dim.layer,
             blockName: dim.blockName,
-            position: { x: 0, y: 0, z: 0 },
+            position: {
+              x: dimBlock.basePoint.x || 0,
+              y: dimBlock.basePoint.y || 0,
+              z: dimBlock.basePoint.z || 0
+            },
             scale: { x: 1, y: 1, z: 1 },
             rotation: 0,
             color: dim.color,
@@ -307,15 +322,19 @@ export class DxfParser {
       }
     }
 
-    // 计算全图包围盒
+    // 计算全图包围盒与主体核心聚焦包围盒
     const boundingBox = computeBoundingBox(flattenedEntities);
+    const focusBoundingBox = computeFocusBoundingBox(flattenedEntities, headerExtents, boundingBox);
 
     return {
       layers,
       blocks,
       entities: flattenedEntities,
       boundingBox,
-      fileName
+      headerExtents,
+      focusBoundingBox,
+      fileName,
+      version
     };
   }
 
@@ -364,6 +383,89 @@ export class DxfParser {
     }
 
     return pairs;
+  }
+
+  /**
+   * 解析 HEADER 节（提取 $EXTMIN, $EXTMAX, $LIMMIN, $LIMMAX, $ACADVER 等元数据）
+   */
+  private parseHeader(pairs: DxfPair[], startIndex: number): {
+    headerExtents?: BoundingBox;
+    version?: string;
+    nextIndex: number;
+  } {
+    let i = startIndex;
+    const len = pairs.length;
+    let extMin: Point3D | null = null;
+    let extMax: Point3D | null = null;
+    let version: string | undefined = undefined;
+
+    while (i < len) {
+      const p = pairs[i];
+      if (p.code === 0 && p.value === 'ENDSEC') {
+        const headerExtents =
+          extMin &&
+          extMax &&
+          isFinite(extMin.x) &&
+          isFinite(extMax.x) &&
+          extMax.x > extMin.x &&
+          extMax.y > extMin.y
+            ? { minX: extMin.x, minY: extMin.y, maxX: extMax.x, maxY: extMax.y }
+            : undefined;
+        return {
+          headerExtents,
+          version,
+          nextIndex: i + 1
+        };
+      }
+
+      if (p.code === 9) {
+        const varName = p.value;
+        i++;
+        if (varName === '$EXTMIN') {
+          extMin = { x: 0, y: 0, z: 0 };
+          while (i < len && pairs[i].code !== 9 && pairs[i].code !== 0) {
+            if (pairs[i].code === 10) extMin.x = parseFloat(pairs[i].value);
+            else if (pairs[i].code === 20) extMin.y = parseFloat(pairs[i].value);
+            else if (pairs[i].code === 30) extMin.z = parseFloat(pairs[i].value);
+            i++;
+          }
+          continue;
+        } else if (varName === '$EXTMAX') {
+          extMax = { x: 0, y: 0, z: 0 };
+          while (i < len && pairs[i].code !== 9 && pairs[i].code !== 0) {
+            if (pairs[i].code === 10) extMax.x = parseFloat(pairs[i].value);
+            else if (pairs[i].code === 20) extMax.y = parseFloat(pairs[i].value);
+            else if (pairs[i].code === 30) extMax.z = parseFloat(pairs[i].value);
+            i++;
+          }
+          continue;
+        } else if (varName === '$ACADVER') {
+          if (i < len && pairs[i].code === 1) {
+            version = pairs[i].value;
+            i++;
+          }
+          continue;
+        }
+      }
+
+      i++;
+    }
+
+    const headerExtents =
+      extMin &&
+      extMax &&
+      isFinite(extMin.x) &&
+      isFinite(extMax.x) &&
+      extMax.x > extMin.x &&
+      extMax.y > extMin.y
+        ? { minX: extMin.x, minY: extMin.y, maxX: extMax.x, maxY: extMax.y }
+        : undefined;
+
+    return {
+      headerExtents,
+      version,
+      nextIndex: i
+    };
   }
 
   /**
@@ -1395,6 +1497,32 @@ export class DxfParser {
           const nestedExpanded = this.expandInsert(synthesized, blocks, depth + 1, currentVisited, currentMatrix);
           for (let k = 0; k < nestedExpanded.length; k++) {
             expandedList.push(nestedExpanded[k]);
+          }
+          break;
+        }
+
+        case 'DIMENSION': {
+          const dim = child as DimensionEntity;
+          if (dim.blockName && blocks.has(dim.blockName)) {
+            const dimBlock = blocks.get(dim.blockName)!;
+            const syntheticInsert: InsertEntity = {
+              type: 'INSERT',
+              layer: dim.layer === '0' ? resolvedLayer : dim.layer,
+              blockName: dim.blockName,
+              position: {
+                x: dimBlock.basePoint.x || 0,
+                y: dimBlock.basePoint.y || 0,
+                z: dimBlock.basePoint.z || 0
+              },
+              scale: { x: 1, y: 1, z: 1 },
+              rotation: 0,
+              color: resolvedColor,
+              colorIndex: resolvedColorIndex
+            };
+            const nestedDimExpanded = this.expandInsert(syntheticInsert, blocks, depth + 1, currentVisited, currentMatrix);
+            for (let k = 0; k < nestedDimExpanded.length; k++) {
+              expandedList.push(nestedDimExpanded[k]);
+            }
           }
           break;
         }

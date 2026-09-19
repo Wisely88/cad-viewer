@@ -26,7 +26,9 @@ const btnOpenFile = document.getElementById('btn-open-file') as HTMLButtonElemen
 const btnCloseFile = document.getElementById('btn-close-file') as HTMLButtonElement | null;
 const sampleSelect = document.getElementById('sample-select') as HTMLSelectElement;
 
-const btnFitView = document.getElementById('btn-fit-view') as HTMLButtonElement;
+const btnFitFocus = document.getElementById('btn-fit-focus') as HTMLButtonElement | null;
+const btnFitFull = document.getElementById('btn-fit-full') as HTMLButtonElement | null;
+const btnFitView = document.getElementById('btn-fit-view') as HTMLButtonElement | null;
 const btnZoomIn = document.getElementById('btn-zoom-in') as HTMLButtonElement;
 const btnZoomOut = document.getElementById('btn-zoom-out') as HTMLButtonElement;
 const btnZoomReset = document.getElementById('btn-zoom-reset') as HTMLButtonElement;
@@ -544,21 +546,77 @@ sampleSelect.addEventListener('change', () => {
 });
 
 // 视口操作
-btnFitView.addEventListener('click', () => renderer.fitToView());
+const updateZoomDisplay = () => {
+  zoomLevelDisplay.textContent = `缩放: ${(renderer.camera.zoom * 100).toFixed(0)}%`;
+};
+
+btnFitFocus?.addEventListener('click', () => {
+  renderer.fitToFocus();
+  updateZoomDisplay();
+  statusMessage.textContent = '已聚焦图纸主体核心区域';
+});
+btnFitFull?.addEventListener('click', () => {
+  renderer.fitToFull();
+  updateZoomDisplay();
+  statusMessage.textContent = '已自适应显示全图范围（含外部参照）';
+});
+btnFitView?.addEventListener('click', () => {
+  renderer.fitToView();
+  updateZoomDisplay();
+});
 btnZoomIn.addEventListener('click', () => {
   renderer.camera.zoom *= 1.25;
   renderer.requestRender();
-  zoomLevelDisplay.textContent = `缩放: ${(renderer.camera.zoom * 100).toFixed(0)}%`;
+  updateZoomDisplay();
 });
 btnZoomOut.addEventListener('click', () => {
   renderer.camera.zoom /= 1.25;
   renderer.requestRender();
-  zoomLevelDisplay.textContent = `缩放: ${(renderer.camera.zoom * 100).toFixed(0)}%`;
+  updateZoomDisplay();
 });
 btnZoomReset.addEventListener('click', () => {
   renderer.camera.zoom = 1.0;
   renderer.requestRender();
-  zoomLevelDisplay.textContent = `缩放: 100%`;
+  updateZoomDisplay();
+});
+
+// 全局键盘快捷键
+window.addEventListener('keydown', (e: KeyboardEvent) => {
+  // 如果焦点在输入框中，不拦截快捷键
+  if (
+    e.target instanceof HTMLInputElement ||
+    e.target instanceof HTMLTextAreaElement ||
+    e.target instanceof HTMLSelectElement
+  ) {
+    return;
+  }
+
+  if (e.key === 'Escape') {
+    if (measureEngine.currentMode !== 'NONE') {
+      setActiveToolButton(btnToolSelect);
+      measureEngine.setMode('NONE');
+      statusMessage.textContent = '已退出测量模式';
+      renderer.requestRender();
+    } else if (renderer.getDocument()) {
+      unloadDocument();
+    }
+  } else if (e.key === 'f' || e.key === 'F') {
+    renderer.fitToFocus();
+    updateZoomDisplay();
+    statusMessage.textContent = '已聚焦主体 (F)';
+  } else if (e.key === 'a' || e.key === 'A') {
+    renderer.fitToFull();
+    updateZoomDisplay();
+    statusMessage.textContent = '已自适应全图 (A)';
+  } else if (e.key === '+' || e.key === '=') {
+    renderer.camera.zoom *= 1.25;
+    renderer.requestRender();
+    updateZoomDisplay();
+  } else if (e.key === '-' || e.key === '_') {
+    renderer.camera.zoom /= 1.25;
+    renderer.requestRender();
+    updateZoomDisplay();
+  }
 });
 
 // 测量工具

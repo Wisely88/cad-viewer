@@ -98,11 +98,32 @@ export class CadRenderer {
   }
 
   /**
-   * 自适应全图 (Fit to View / Zoom Extents)
+   * 自适应主体 (Fit to Focus / Zoom Model)
+   * 优先聚焦 AutoCAD HEADER 规定的模型空间 $EXTMIN/$EXTMAX 或图纸主体核心区域
+   */
+  public fitToFocus(): void {
+    if (!this.doc) return;
+    const bbox: BoundingBox = this.doc.focusBoundingBox || this.doc.headerExtents || this.doc.boundingBox;
+    this.applyBoundingBoxToCamera(bbox);
+  }
+
+  /**
+   * 自适应全图 (Fit to All / Zoom Extents)
+   * 包含外围数公里处的外部参照与备份图纸在内的完整图纸范围
+   */
+  public fitToFull(): void {
+    if (!this.doc) return;
+    this.applyBoundingBoxToCamera(this.doc.boundingBox);
+  }
+
+  /**
+   * 默认自适应视口：优先聚焦图纸核心主体
    */
   public fitToView(): void {
-    if (!this.doc) return;
-    const bbox: BoundingBox = this.doc.boundingBox;
+    this.fitToFocus();
+  }
+
+  private applyBoundingBoxToCamera(bbox: BoundingBox): void {
     const w = bbox.maxX - bbox.minX;
     const h = bbox.maxY - bbox.minY;
 
@@ -322,8 +343,9 @@ export class CadRenderer {
         if (b.maxX < viewMinX || b.minX > viewMaxX || b.maxY < viewMinY || b.minY > viewMaxY) {
           continue;
         }
-        // 亚像素 LOD 剔除: 跨度小于 0.25 像素的微小杂点在全图缩小状态下跳过绘制
-        if ((b.maxX - b.minX) * zoom < 0.25 && (b.maxY - b.minY) * zoom < 0.25) {
+        // 亚像素 LOD 剔除: 仅当对角线绝对跨度真正小于 0.08 像素时才跳过，严禁对正交线 (dx=0 或 dy=0) 实行双轴 <0.25 导致横竖线被错杀、线框散架断裂
+        const diagScreen = Math.hypot(b.maxX - b.minX, b.maxY - b.minY) * zoom;
+        if (diagScreen < 0.08) {
           continue;
         }
       }

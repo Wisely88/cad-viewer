@@ -538,7 +538,7 @@
 
         <input type="file" id="file-input" accept=".dxf,.dwg" style="display: none;">
         <button id="btn-open-file" class="tool-btn">📂 打开图纸</button>
-        <button id="btn-close-file" class="tool-btn" style="display: none; color: #ff5252; border-color: rgba(255, 82, 82, 0.35);" title="关闭并退出当前图纸">✕ 关闭图纸</button>
+        <button id="btn-close-file" class="tool-btn" style="display: none; color: #ff5252; font-weight: 600; border-color: rgba(255, 82, 82, 0.45); background: rgba(255, 82, 82, 0.08);" title="关闭并退出当前图纸 (快捷键: Esc)">✕ 关闭图纸</button>
         <button id="btn-mobile-layers" class="tool-btn mobile-only">📑 图层</button>
 
         <select id="sample-select" class="tool-select">
@@ -550,7 +550,9 @@
       </div>
 
       <div class="toolbar-center">
-        <button id="btn-fit-view" class="tool-btn" title="双击画布或点击居中全图">⛶ 居中</button>
+        <button id="btn-fit-focus" class="tool-btn" title="智能聚焦图纸主体核心区域 (快捷键: F)">🎯 聚焦主体</button>
+        <button id="btn-fit-full" class="tool-btn desktop-only" title="适应全图范围，包含游离外部参照 (快捷键: A)">⛶ 适应全图</button>
+        <button id="btn-fit-view" style="display: none;"></button>
         <button id="btn-zoom-in" class="tool-btn">➕ 放大</button>
         <button id="btn-zoom-out" class="tool-btn">➖ 缩小</button>
         <button id="btn-zoom-reset" class="tool-btn desktop-only">1:1 重置</button>

@@ -227,3 +227,75 @@ export function computeBoundingBox(entities: DxfEntity[]): BoundingBox {
 
   return box;
 }
+
+/**
+ * 计算图纸的主体核心聚焦包围盒 (Focus Bounding Box)
+ * 优先采纳 AutoCAD HEADER 变量 $EXTMIN/$EXTMAX；若不存在或无效，则通过分位数采样过滤外侧几公里游离的离群外部参照 (XREF)
+ */
+export function computeFocusBoundingBox(
+  entities: DxfEntity[],
+  headerExtents?: BoundingBox,
+  fullBox?: BoundingBox
+): BoundingBox {
+  // 1. 若 DXF HEADER 声明了有效的 $EXTMIN / $EXTMAX 模型空间范围，优先使用
+  if (
+    headerExtents &&
+    isFinite(headerExtents.minX) &&
+    isFinite(headerExtents.maxX) &&
+    isFinite(headerExtents.minY) &&
+    isFinite(headerExtents.maxY) &&
+    headerExtents.maxX - headerExtents.minX > 1 &&
+    headerExtents.maxY - headerExtents.minY > 1
+  ) {
+    return {
+      minX: headerExtents.minX,
+      minY: headerExtents.minY,
+      maxX: headerExtents.maxX,
+      maxY: headerExtents.maxY
+    };
+  }
+
+  const baseBox = fullBox || computeBoundingBox(entities);
+  const n = entities.length;
+  if (n < 50) {
+    return { ...baseBox };
+  }
+
+  // 2. 均匀分位数采样 (快速 2000 点抽样，执行耗时 < 2ms)
+  const sampleLimit = Math.min(n, 2000);
+  const step = Math.max(1, Math.floor(n / sampleLimit));
+  const xs: number[] = [];
+  const ys: number[] = [];
+
+  for (let i = 0; i < n; i += step) {
+    const b = entities[i].bbox;
+    if (b && isFinite(b.minX) && isFinite(b.maxX)) {
+      xs.push((b.minX + b.maxX) / 2);
+      ys.push((b.minY + b.maxY) / 2);
+    }
+  }
+
+  if (xs.length < 10) {
+    return { ...baseBox };
+  }
+
+  xs.sort((a, b) => a - b);
+  ys.sort((a, b) => a - b);
+
+  // 过滤前 2% 与后 2% 的极端离群点
+  const q02x = xs[Math.floor(xs.length * 0.02)];
+  const q98x = xs[Math.floor(xs.length * 0.98)];
+  const q02y = ys[Math.floor(ys.length * 0.02)];
+  const q98y = ys[Math.floor(ys.length * 0.98)];
+
+  // 为聚焦包围盒留出 5% 缓冲区
+  const padX = Math.max((q98x - q02x) * 0.05, 50);
+  const padY = Math.max((q98y - q02y) * 0.05, 50);
+
+  return {
+    minX: Math.max(baseBox.minX, q02x - padX),
+    minY: Math.max(baseBox.minY, q02y - padY),
+    maxX: Math.min(baseBox.maxX, q98x + padX),
+    maxY: Math.min(baseBox.maxY, q98y + padY)
+  };
+}
