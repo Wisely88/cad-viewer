@@ -36,6 +36,7 @@ export interface BaseEntity {
   color?: string;
   colorIndex?: number;
   lineType?: string;
+  bbox?: BoundingBox;
 }
 
 export interface LineEntity extends BaseEntity {
@@ -110,6 +111,7 @@ export interface InsertEntity extends BaseEntity {
   position: Point3D;
   scale: Point3D;
   rotation: number; // 角度制
+  extrusion?: Point3D;
 }
 
 export interface DimensionEntity extends BaseEntity {
@@ -134,6 +136,16 @@ export interface HatchEntity extends BaseEntity {
   patternName?: string;
 }
 
+export interface SolidEntity extends BaseEntity {
+  type: 'SOLID';
+  points: Point3D[];
+}
+
+export interface Face3DEntity extends BaseEntity {
+  type: '3DFACE';
+  points: Point3D[];
+}
+
 export type DxfEntity =
   | LineEntity
   | CircleEntity
@@ -146,7 +158,9 @@ export type DxfEntity =
   | InsertEntity
   | DimensionEntity
   | SplineEntity
-  | HatchEntity;
+  | HatchEntity
+  | SolidEntity
+  | Face3DEntity;
 
 export interface DxfBlock {
   name: string;

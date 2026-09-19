@@ -23,6 +23,7 @@ const measureEngine = new MeasureEngine();
 const canvas = document.getElementById('cad-canvas') as HTMLCanvasElement;
 const fileInput = document.getElementById('file-input') as HTMLInputElement;
 const btnOpenFile = document.getElementById('btn-open-file') as HTMLButtonElement;
+const btnCloseFile = document.getElementById('btn-close-file') as HTMLButtonElement | null;
 const sampleSelect = document.getElementById('sample-select') as HTMLSelectElement;
 
 const btnFitView = document.getElementById('btn-fit-view') as HTMLButtonElement;
@@ -201,6 +202,10 @@ function loadDxfContent(content: string, fileName: string): void {
     measureEngine.clear();
     renderMeasurementList();
 
+    if (btnCloseFile) {
+      btnCloseFile.style.display = 'inline-flex';
+    }
+
     statusMessage.textContent = `就绪 (解析耗时 ${duration}ms)`;
     docSummaryDisplay.textContent = `${fileName} | 图层: ${doc.layers.size} | 实体: ${doc.entities.length}`;
     zoomLevelDisplay.textContent = `缩放: ${(renderer.camera.zoom * 100).toFixed(0)}%`;
@@ -209,6 +214,32 @@ function loadDxfContent(content: string, fileName: string): void {
     alert(`解析 DXF 失败: ${message}`);
     statusMessage.textContent = '解析出错';
   }
+}
+
+/**
+ * 关闭并退出当前图纸
+ */
+function unloadDocument(): void {
+  renderer.setDocument(null);
+  renderInspector(null);
+  measureEngine.clear();
+  renderMeasurementList();
+
+  layerTotalCount.textContent = '0';
+  layersContainer.innerHTML = `
+    <div style="color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 20px;">
+      未加载图纸
+    </div>
+  `;
+  statusMessage.textContent = '已关闭图纸';
+  docSummaryDisplay.textContent = '未加载图纸';
+  coordDisplay.textContent = 'X: 0.00 mm  Y: 0.00 mm';
+  zoomLevelDisplay.textContent = '缩放: 100%';
+  if (btnCloseFile) {
+    btnCloseFile.style.display = 'none';
+  }
+  sampleSelect.value = '';
+  fileInput.value = '';
 }
 
 /**
@@ -404,6 +435,7 @@ function setActiveToolButton(btn: HTMLButtonElement): void {
 
 // 事件绑定
 btnOpenFile.addEventListener('click', () => fileInput.click());
+btnCloseFile?.addEventListener('click', unloadDocument);
 
 /**
  * 统一处理外部传入的文件 (自动识别并支持 DXF 与 DWG 双格式直接读取)

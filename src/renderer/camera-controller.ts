@@ -278,6 +278,17 @@ export class CameraController {
     this.renderer.cursorScreen = { x: sx, y: sy };
     const rawWorld = this.renderer.screenToWorld(sx, sy);
 
+    // 平移拖拽中跳过昂贵的吸附与悬停探测，保障纯净 60fps 平移
+    if (this.isDragging) {
+      this.renderer.activeSnap = null;
+      this.renderer.hoveredEntity = null;
+      this.renderer.cursorWorld = rawWorld;
+      if (this.callbacks.onCursorMove) {
+        this.callbacks.onCursorMove(rawWorld, { x: sx, y: sy });
+      }
+      return;
+    }
+
     // 吸附检测
     let finalWorld = rawWorld;
     if (this.renderer.options.showSnap && this.renderer.getDocument()) {

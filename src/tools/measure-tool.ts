@@ -133,7 +133,18 @@ export class MeasureEngine {
       }
     };
 
+    const cx = cursorWorld.x;
+    const cy = cursorWorld.y;
+
     for (const ent of entities) {
+      const b = ent.bbox;
+      if (b) {
+        if (cx < b.minX - snapToleranceWorld || cx > b.maxX + snapToleranceWorld ||
+            cy < b.minY - snapToleranceWorld || cy > b.maxY + snapToleranceWorld) {
+          continue;
+        }
+      }
+
       switch (ent.type) {
         case 'LINE': {
           const l = ent as LineEntity;

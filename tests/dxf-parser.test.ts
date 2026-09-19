@@ -304,4 +304,168 @@ EOF
       assert.ok(doc.entities.length >= 1);
     });
   });
+
+  it('should parse Polyface Mesh (flag 64) and convert faces into wireframe LINE entities', () => {
+    const polyfaceDxf = `
+0
+SECTION
+2
+ENTITIES
+0
+POLYLINE
+8
+EQUIPMENT
+70
+64
+71
+4
+72
+1
+0
+VERTEX
+8
+EQUIPMENT
+10
+0.0
+20
+0.0
+30
+0.0
+70
+192
+0
+VERTEX
+8
+EQUIPMENT
+10
+10.0
+20
+0.0
+30
+0.0
+70
+192
+0
+VERTEX
+8
+EQUIPMENT
+10
+10.0
+20
+10.0
+30
+0.0
+70
+192
+0
+VERTEX
+8
+EQUIPMENT
+10
+0.0
+20
+10.0
+30
+0.0
+70
+192
+0
+VERTEX
+8
+EQUIPMENT
+70
+128
+71
+1
+72
+2
+73
+3
+74
+4
+0
+SEQEND
+0
+ENDSEC
+0
+EOF
+`;
+    const doc = parser.parse(polyfaceDxf);
+    // 应该将四边形面转换为 4 条封闭的线框边 LINE
+    assert.strictEqual(doc.entities.length, 4);
+    assert.strictEqual(doc.entities[0].type, 'LINE');
+    assert.strictEqual(doc.entities[0].layer, 'EQUIPMENT');
+  });
+
+  it('should correctly handle negative scale (mirroring) on ARC entities in INSERT', () => {
+    const mirroredDxf = `
+0
+SECTION
+2
+BLOCKS
+0
+BLOCK
+2
+ARC_BLOCK
+10
+0.0
+20
+0.0
+30
+0.0
+0
+ARC
+8
+0
+10
+0.0
+20
+0.0
+30
+0.0
+40
+50.0
+50
+0.0
+51
+90.0
+0
+ENDBLK
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+INSERT
+2
+ARC_BLOCK
+10
+100.0
+20
+200.0
+41
+-1.0
+42
+1.0
+50
+0.0
+0
+ENDSEC
+0
+EOF
+`;
+    const doc = parser.parse(mirroredDxf);
+    assert.strictEqual(doc.entities.length, 1);
+    const arc = doc.entities[0];
+    assert.strictEqual(arc.type, 'ARC');
+    if (arc.type === 'ARC') {
+      assert.strictEqual(arc.center.x, 100);
+      assert.strictEqual(arc.center.y, 200);
+      // X 轴镜像后，原 0~90 变为 90~180 (逆时针 CCW)
+      assert.ok(Math.abs(arc.startAngle - 90) < 1e-3, `Expected startAngle ~ 90, got ${arc.startAngle}`);
+      assert.ok(Math.abs(arc.endAngle - 180) < 1e-3, `Expected endAngle ~ 180, got ${arc.endAngle}`);
+    }
+  });
 });
