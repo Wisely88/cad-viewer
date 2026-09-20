@@ -1,0 +1,268 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000010000000000000001 /* LiteCADAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000001 /* LiteCADAppMain.swift */; };
+		A10000010000000000000002 /* DocumentState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000002 /* DocumentState.swift */; };
+		A10000010000000000000003 /* DocumentImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000003 /* DocumentImportView.swift */; };
+		A10000010000000000000004 /* MetalCADView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000004 /* MetalCADView.swift */; };
+		A10000010000000000000005 /* LibreDWGDocumentLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000007 /* LibreDWGDocumentLoader.swift */; };
+		A10000010000000000000006 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000008 /* Assets.xcassets */; };
+		A10000010000000000000007 /* RoomScanModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000009 /* RoomScanModule.swift */; };
+		A10000010000000000000008 /* ObjectScanModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000010 /* ObjectScanModule.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000010000000000000005 /* LiteCAD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LiteCAD.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000010000000000000006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LiteCADApp/Info.plist; sourceTree = SOURCE_ROOT; };
+		A20000010000000000000001 /* LiteCADAppMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteCADAppMain.swift; sourceTree = "<group>"; };
+		A20000010000000000000002 /* DocumentState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentState.swift; sourceTree = "<group>"; };
+		A20000010000000000000003 /* DocumentImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentImportView.swift; sourceTree = "<group>"; };
+		A20000010000000000000004 /* MetalCADView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalCADView.swift; sourceTree = "<group>"; };
+		A20000010000000000000007 /* LibreDWGDocumentLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibreDWGDocumentLoader.swift; sourceTree = "<group>"; };
+		A20000010000000000000008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A20000010000000000000009 /* RoomScanModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomScanModule.swift; sourceTree = "<group>"; };
+		A20000010000000000000010 /* ObjectScanModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjectScanModule.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A30000010000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A40000010000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A40000010000000000000002 /* LiteCADApp */,
+				A40000010000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A40000010000000000000002 /* LiteCADApp */ = {
+			isa = PBXGroup;
+			children = (
+				A40000010000000000000004 /* Sources */,
+				A20000010000000000000008 /* Assets.xcassets */,
+				A20000010000000000000006 /* Info.plist */,
+			);
+			path = LiteCADApp;
+			sourceTree = SOURCE_ROOT;
+		};
+		A40000010000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000005 /* LiteCAD.app */,
+			);
+			name = Products;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		A40000010000000000000004 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000001 /* LiteCADAppMain.swift */,
+				A20000010000000000000002 /* DocumentState.swift */,
+				A20000010000000000000003 /* DocumentImportView.swift */,
+				A20000010000000000000004 /* MetalCADView.swift */,
+				A20000010000000000000007 /* LibreDWGDocumentLoader.swift */,
+				A20000010000000000000009 /* RoomScanModule.swift */,
+				A20000010000000000000010 /* ObjectScanModule.swift */,
+			);
+			path = Sources/LiteCADApp;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A50000010000000000000001 /* LiteCAD */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A70000010000000000000002 /* Build configuration list for PBXNativeTarget "LiteCAD" */;
+			buildPhases = (
+				A30000010000000000000002 /* Sources */,
+				A30000010000000000000001 /* Frameworks */,
+				A30000010000000000000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LiteCAD;
+			packageProductDependencies = (
+				A80000010000000000000001 /* LiteCADCore */,
+			);
+			productName = LiteCAD;
+			productReference = A20000010000000000000005 /* LiteCAD.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A60000010000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					A50000010000000000000001 = {
+						CreatedOnToolsVersion = 27.0;
+					};
+				};
+			};
+			buildConfigurationList = A70000010000000000000001 /* Build configuration list for PBXProject "LiteCAD" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A40000010000000000000001;
+			packageReferences = (
+				A90000010000000000000001 /* LiteCADCore */,
+			);
+			productRefGroup = A40000010000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A50000010000000000000001 /* LiteCAD */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A30000010000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000010000000000000006 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A30000010000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000010000000000000001 /* LiteCADAppMain.swift in Sources */,
+				A10000010000000000000002 /* DocumentState.swift in Sources */,
+				A10000010000000000000003 /* DocumentImportView.swift in Sources */,
+				A10000010000000000000004 /* MetalCADView.swift in Sources */,
+				A10000010000000000000005 /* LibreDWGDocumentLoader.swift in Sources */,
+				A10000010000000000000007 /* RoomScanModule.swift in Sources */,
+				A10000010000000000000008 /* ObjectScanModule.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A70000010000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LiteCADApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SWIFT_OBJC_BRIDGING_HEADER = LiteCADApp/LibreDWGBridge-Bridging-Header.h;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wisely.LiteCAD;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A70000010000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = LiteCADApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				SWIFT_OBJC_BRIDGING_HEADER = LiteCADApp/LibreDWGBridge-Bridging-Header.h;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wisely.LiteCAD;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		A70000010000000000000005 /* Project Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A70000010000000000000006 /* Project Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A70000010000000000000001 /* Build configuration list for PBXProject "LiteCAD" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A70000010000000000000005 /* Project Debug */,
+				A70000010000000000000006 /* Project Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A70000010000000000000002 /* Build configuration list for PBXNativeTarget "LiteCAD" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A70000010000000000000003 /* Debug */,
+				A70000010000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A90000010000000000000001 /* LiteCADCore */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = LiteCADCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A80000010000000000000001 /* LiteCADCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A90000010000000000000001 /* LiteCADCore */;
+			productName = LiteCADCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A60000010000000000000001 /* Project object */;
+}

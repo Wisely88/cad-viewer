@@ -1,6 +1,29 @@
 # CAD Viewer (DXF / DWG)
 
-轻量、零授权费、纯前端的本地 2D CAD 查看器。
+本地 2D CAD 查看器。原生 iOS LiteCAD 面向大 DWG；现有 Web/PWA 保留为轻量 DXF/小图备用路线。
+
+## 原生 iOS 路线
+
+原生路线采用：
+
+```text
+本地 DWG → LibreDWG C/Objective-C++ → LiteCAD Scene Graph
+         → Block Definition + Instance Matrix → Metal
+```
+
+当前原生切片已经包含可测试的 `ios/LiteCADCore`、iPhone 文件选择、Metal
+视口、LibreDWG C adapter 和 Swift collector。LibreDWG 源码固定到已验证的
+commit，并通过脚本构建 iPhoneOS arm64 静态归档；归档不进入仓库，避免把
+外部 GPLv3+ 依赖伪装成已审查的发布物。真实 AC1021/R2007 文件已经完成模拟机
+和物理 iPhone 回放验证，初版已可用于本地查看、测量、标注、历史重开和 DXF
+副本导出。原生 DWG 回写、完整 HATCH 洞口填充和自定义线型传输仍明确不纳入
+初版交付。
+
+原生 App 另有独立的 **3D 扫描**入口：
+
+- **家装设计 3D 扫描**：基于 RoomPlan 扫描房间、墙面、门窗和可识别家具。
+- **景物静物扫描**：基于 Object Capture + Photogrammetry 将家具、设备、摆件或器件拍摄生成 USDZ。
+- 两个模块分别保存扫描文件，并支持重新打开、分享/云端、删除，以及 3D 预览中的旋转、平移和缩放。
 
 ## 特色
 - 🚀 **纯本地与零后端**：图纸不上传服务器，毫秒级本地直接解析与渲染。
