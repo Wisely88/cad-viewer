@@ -605,20 +605,78 @@ struct RoomScanSceneView: UIViewRepresentable {
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.backgroundColor = .black
+        view.autoenablesDefaultLighting = true
         view.allowsCameraControl = true
         view.cameraControlConfiguration.allowsTranslation = true
         view.defaultCameraController.inertiaEnabled = true
         view.defaultCameraController.automaticTarget = true
-        view.scene = try? SCNScene(url: url, options: [.checkConsistency: true])
-        if let scene = view.scene {
+        do {
+            let scene = try SCNScene(url: url, options: [.checkConsistency: true])
+            let bounds = scene.rootNode.boundingBox
+            let minBounds = bounds.min
+            let maxBounds = bounds.max
+            let center = SCNVector3(
+                (minBounds.x + maxBounds.x) / 2,
+                (minBounds.y + maxBounds.y) / 2,
+                (minBounds.z + maxBounds.z) / 2
+            )
+            let size = SCNVector3(
+                maxBounds.x - minBounds.x,
+                maxBounds.y - minBounds.y,
+                maxBounds.z - minBounds.z
+            )
+            let largestDimension = max(size.x, max(size.y, size.z))
+            let cameraDistance = max(largestDimension * 2.4, 2.4)
+
+            let ambientLight = SCNNode()
+            ambientLight.light = SCNLight()
+            ambientLight.light?.type = .ambient
+            ambientLight.light?.color = UIColor(white: 0.78, alpha: 1)
+            ambientLight.light?.intensity = 650
+            scene.rootNode.addChildNode(ambientLight)
+
+            let keyLight = SCNNode()
+            keyLight.light = SCNLight()
+            keyLight.light?.type = .omni
+            keyLight.light?.color = UIColor(white: 1, alpha: 1)
+            keyLight.light?.intensity = 950
+            keyLight.light?.attenuationEndDistance = CGFloat(max(cameraDistance * 4, 20))
+            keyLight.position = SCNVector3(
+                center.x + cameraDistance,
+                center.y + cameraDistance,
+                center.z + cameraDistance
+            )
+            scene.rootNode.addChildNode(keyLight)
+
             let cameraNode = SCNNode()
             cameraNode.camera = SCNCamera()
-            cameraNode.position = SCNVector3(0, 0, 4)
+            cameraNode.camera?.zNear = 0.01
+            cameraNode.camera?.zFar = Double(max(cameraDistance * 20, 100))
+            cameraNode.position = SCNVector3(
+                center.x,
+                center.y + cameraDistance * 0.28,
+                center.z + cameraDistance
+            )
+            cameraNode.look(at: center)
             scene.rootNode.addChildNode(cameraNode)
+            view.scene = scene
             view.pointOfView = cameraNode
             view.defaultCameraController.pointOfView = cameraNode
-            view.defaultCameraController.target = SCNVector3Zero
-            view.defaultCameraController.frameNodes(scene.rootNode.childNodes)
+            view.defaultCameraController.target = center
+        } catch {
+            let label = UILabel(frame: .zero)
+            label.text = "3D 文件无法加载\n\(error.localizedDescription)"
+            label.textColor = .white
+            label.textAlignment = .center
+            label.numberOfLines = 0
+            label.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(label)
+            NSLayoutConstraint.activate([
+                label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+                label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
+                label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24)
+            ])
         }
         return view
     }

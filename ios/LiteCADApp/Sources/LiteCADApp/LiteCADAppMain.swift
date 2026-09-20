@@ -1,11 +1,14 @@
 #if os(iOS)
+import Foundation
 import SwiftUI
 
 @main
 struct LiteCADAppMain: App {
     var body: some Scene {
         WindowGroup {
-            if launchRoomScan {
+            if let previewURL = launchUSDZURL {
+                ThreeDScanPreviewView(url: previewURL)
+            } else if launchRoomScan {
                 ThreeDScanHubView()
             } else {
 #if LITECAD_LIBREDWG_ENABLED
@@ -22,6 +25,25 @@ struct LiteCADAppMain: App {
 
     private var launchRoomScan: Bool {
         ProcessInfo.processInfo.arguments.contains("--room-scan")
+    }
+
+    private var launchUSDZURL: URL? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let marker = arguments.firstIndex(of: "--test-usdz"),
+              arguments.indices.contains(marker + 1) else {
+            return nil
+        }
+
+        let suppliedPath = arguments[marker + 1]
+        if suppliedPath.hasPrefix("/") {
+            return URL(fileURLWithPath: suppliedPath)
+        }
+
+        let applicationSupportURL = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        )[0]
+        return applicationSupportURL.appendingPathComponent(suppliedPath)
     }
 
     private var launchTestURL: URL? {
