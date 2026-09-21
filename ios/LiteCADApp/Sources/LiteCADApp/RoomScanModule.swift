@@ -612,7 +612,10 @@ struct RoomScanSceneView: UIViewRepresentable {
         view.defaultCameraController.automaticTarget = true
         do {
             let scene = try SCNScene(url: url, options: [.checkConsistency: true])
-            let bounds = scene.rootNode.boundingBox
+            applyFallbackMaterials(to: scene.rootNode)
+            guard let bounds = visibleBounds(for: scene.rootNode) else {
+                throw PreviewError.noVisibleGeometry
+            }
             let minBounds = bounds.min
             let maxBounds = bounds.max
             let center = SCNVector3(
@@ -652,6 +655,7 @@ struct RoomScanSceneView: UIViewRepresentable {
             cameraNode.camera = SCNCamera()
             cameraNode.camera?.zNear = 0.01
             cameraNode.camera?.zFar = Double(max(cameraDistance * 20, 100))
+            cameraNode.camera?.fieldOfView = 50
             cameraNode.position = SCNVector3(
                 center.x,
                 center.y + cameraDistance * 0.28,
@@ -675,13 +679,93 @@ struct RoomScanSceneView: UIViewRepresentable {
                 label.centerXAnchor.constraint(equalTo: view.centerXAnchor),
                 label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
                 label.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
-                label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24)
+            label.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24)
             ])
         }
         return view
     }
 
     func updateUIView(_ uiView: SCNView, context: Context) {}
+
+    private enum PreviewError: LocalizedError {
+        case noVisibleGeometry
+
+        var errorDescription: String? {
+            "USDZ 文件中没有可显示的几何体"
+        }
+    }
+
+    private func applyFallbackMaterials(to node: SCNNode) {
+        if let geometry = node.geometry {
+            if geometry.materials.isEmpty {
+                let material = SCNMaterial()
+                material.diffuse.contents = UIColor(white: 0.82, alpha: 1)
+                material.lightingModel = .physicallyBased
+                material.roughness.contents = 0.82
+                geometry.firstMaterial = material
+            } else {
+                for material in geometry.materials where material.diffuse.contents == nil {
+                    material.diffuse.contents = UIColor(white: 0.82, alpha: 1)
+                    material.lightingModel = .physicallyBased
+                    material.roughness.contents = 0.82
+                }
+            }
+        }
+        node.childNodes.forEach(applyFallbackMaterials)
+    }
+
+    private func visibleBounds(for rootNode: SCNNode) -> (min: SCNVector3, max: SCNVector3)? {
+        var minBounds = SCNVector3(Float.greatestFiniteMagnitude,
+                                   Float.greatestFiniteMagnitude,
+                                   Float.greatestFiniteMagnitude)
+        var maxBounds = SCNVector3(-Float.greatestFiniteMagnitude,
+                                   -Float.greatestFiniteMagnitude,
+                                   -Float.greatestFiniteMagnitude)
+        var foundGeometry = false
+
+        func include(_ point: SCNVector3) {
+            guard point.x.isFinite, point.y.isFinite, point.z.isFinite else { return }
+            minBounds.x = min(minBounds.x, point.x)
+            minBounds.y = min(minBounds.y, point.y)
+            minBounds.z = min(minBounds.z, point.z)
+            maxBounds.x = max(maxBounds.x, point.x)
+            maxBounds.y = max(maxBounds.y, point.y)
+            maxBounds.z = max(maxBounds.z, point.z)
+            foundGeometry = true
+        }
+
+        func visit(_ node: SCNNode) {
+            if let geometry = node.geometry {
+                let bounds = geometry.boundingBox
+                let minPoint = bounds.min
+                let maxPoint = bounds.max
+                if minPoint.x.isFinite, minPoint.y.isFinite, minPoint.z.isFinite,
+                   maxPoint.x.isFinite, maxPoint.y.isFinite, maxPoint.z.isFinite,
+                   minPoint.x <= maxPoint.x, minPoint.y <= maxPoint.y, minPoint.z <= maxPoint.z {
+                    let points = [
+                        SCNVector3(minPoint.x, minPoint.y, minPoint.z),
+                        SCNVector3(minPoint.x, minPoint.y, maxPoint.z),
+                        SCNVector3(minPoint.x, maxPoint.y, minPoint.z),
+                        SCNVector3(minPoint.x, maxPoint.y, maxPoint.z),
+                        SCNVector3(maxPoint.x, minPoint.y, minPoint.z),
+                        SCNVector3(maxPoint.x, minPoint.y, maxPoint.z),
+                        SCNVector3(maxPoint.x, maxPoint.y, minPoint.z),
+                        SCNVector3(maxPoint.x, maxPoint.y, maxPoint.z)
+                    ]
+                    points.forEach { include(node.convertPosition($0, to: rootNode)) }
+                }
+            }
+            node.childNodes.forEach(visit)
+        }
+
+        visit(rootNode)
+        guard foundGeometry else { return nil }
+        let size = SCNVector3(maxBounds.x - minBounds.x,
+                              maxBounds.y - minBounds.y,
+                              maxBounds.z - minBounds.z)
+        guard size.x > 0 || size.y > 0 || size.z > 0 else { return nil }
+        return (minBounds, maxBounds)
+    }
 }
 
 private struct RoomScanShareSheet: UIViewControllerRepresentable {

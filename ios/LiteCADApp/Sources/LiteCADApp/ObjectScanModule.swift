@@ -222,6 +222,7 @@ final class ObjectScanModel: ObservableObject {
 
     private var imagesDirectory: URL?
     private var processingTask: Task<Void, Never>?
+    private var photogrammetrySession: PhotogrammetrySession?
 
     var isSupported: Bool { ObjectCaptureSession.isSupported }
 
@@ -271,6 +272,8 @@ final class ObjectScanModel: ObservableObject {
     func reset() {
         processingTask?.cancel()
         processingTask = nil
+        photogrammetrySession?.cancel()
+        photogrammetrySession = nil
         session.cancel()
         session = ObjectCaptureSession()
         phase = .idle
@@ -316,6 +319,8 @@ final class ObjectScanModel: ObservableObject {
     private func beginPhotogrammetryIfNeeded() {
         guard processingTask == nil, let imagesDirectory else { return }
         phase = .processing
+        modelURL = nil
+        progress = 0
         processingTask = Task { [weak self] in
             do {
                 var configuration = PhotogrammetrySession.Configuration()
@@ -324,16 +329,29 @@ final class ObjectScanModel: ObservableObject {
                 let outputURL = imagesDirectory
                     .deletingLastPathComponent()
                     .appendingPathComponent("model-\(UUID().uuidString).usdz")
+                self?.photogrammetrySession = photogrammetry
                 try photogrammetry.process(requests: [.modelFile(url: outputURL, detail: .reduced)])
                 for try await output in photogrammetry.outputs {
                     switch output {
                     case .requestProgress(_, let fractionComplete):
                         self?.progress = fractionComplete
                     case .requestComplete(_, .modelFile(let url)):
+                        guard FileManager.default.fileExists(atPath: url.path),
+                              (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0 > 0 else {
+                            self?.phase = .failed("3D 模型输出为空，请增加拍摄角度后重试。")
+                            continue
+                        }
                         self?.modelURL = url
                     case .processingComplete:
-                        self?.phase = .completed
-                        self?.message = "3D 模型已生成，可以保存并打开预览。"
+                        guard let self,
+                              let modelURL = self.modelURL,
+                              FileManager.default.fileExists(atPath: modelURL.path) else {
+                            self?.phase = .failed("建模流程已结束，但没有找到 USDZ 文件。请重试并保持物品完整入镜。")
+                            continue
+                        }
+                        self.phase = .completed
+                        self.progress = 1
+                        self.message = "3D 模型已生成，可以保存并打开预览。"
                     case .requestError(_, let error):
                         self?.phase = .failed("模型生成失败：\(error.localizedDescription)")
                     case .processingCancelled:
@@ -342,9 +360,13 @@ final class ObjectScanModel: ObservableObject {
                         break
                     }
                 }
+                if let self, self.phase == .processing {
+                    self.phase = .failed("建模输出未完成，请检查光线、纹理和拍摄覆盖范围后重试。")
+                }
             } catch {
                 self?.phase = .failed("模型生成失败：\(error.localizedDescription)")
             }
+            self?.photogrammetrySession = nil
         }
     }
 }
