@@ -606,8 +606,14 @@ struct RoomScanSceneView: UIViewRepresentable {
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
         view.backgroundColor = UIColor(white: 0.06, alpha: 1)
-        view.debugOptions = [.showWireframe]
+        // Do not enable SceneKit's debug wireframe here. Photogrammetry USDZ
+        // files contain a dense triangle mesh; showing every triangle turns a
+        // valid model into a cloud of white dots and makes the saved scan look
+        // empty. The lit textured surface preserves the object's outer
+        // silhouette without exposing internal mesh topology.
+        view.debugOptions = []
         view.autoenablesDefaultLighting = false
+        view.antialiasingMode = .multisampling4X
         view.allowsCameraControl = true
         view.cameraControlConfiguration.allowsTranslation = true
         view.defaultCameraController.inertiaEnabled = true
@@ -615,7 +621,11 @@ struct RoomScanSceneView: UIViewRepresentable {
         do {
             let scene = try SCNScene(url: url, options: [.checkConsistency: true])
             scene.background.contents = UIColor(white: 0.06, alpha: 1)
-            applyFallbackMaterials(to: scene.rootNode)
+            if isObjectScan(url) {
+                applyObjectScanMaterials(to: scene.rootNode)
+            } else {
+                applyFallbackMaterials(to: scene.rootNode)
+            }
             guard let bounds = visibleBounds(for: scene.rootNode) else {
                 throw PreviewError.noVisibleGeometry
             }
@@ -632,20 +642,24 @@ struct RoomScanSceneView: UIViewRepresentable {
                 maxBounds.z - minBounds.z
             )
             let largestDimension = max(size.x, max(size.y, size.z))
-            let cameraDistance = max(largestDimension * 2.4, 2.4)
+            // RoomPlan scenes are measured in meters, while Object Capture
+            // models can be much smaller. A fixed minimum distance made saved
+            // bottles and furniture appear as tiny dots, so frame from the
+            // actual model size and only keep a small numerical floor.
+            let cameraDistance = max(largestDimension * 1.85, 0.18)
 
             let ambientLight = SCNNode()
             ambientLight.light = SCNLight()
             ambientLight.light?.type = .ambient
             ambientLight.light?.color = UIColor(white: 0.78, alpha: 1)
-            ambientLight.light?.intensity = 260
+            ambientLight.light?.intensity = isObjectScan(url) ? 75 : 130
             scene.rootNode.addChildNode(ambientLight)
 
             let keyLight = SCNNode()
             keyLight.light = SCNLight()
             keyLight.light?.type = .omni
             keyLight.light?.color = UIColor(white: 1, alpha: 1)
-            keyLight.light?.intensity = 720
+            keyLight.light?.intensity = isObjectScan(url) ? 210 : 420
             keyLight.light?.attenuationEndDistance = CGFloat(max(cameraDistance * 4, 20))
             keyLight.position = SCNVector3(
                 center.x + cameraDistance,
@@ -715,6 +729,22 @@ struct RoomScanSceneView: UIViewRepresentable {
             }
         }
         node.childNodes.forEach(applyFallbackMaterials)
+    }
+
+    private func applyObjectScanMaterials(to node: SCNNode) {
+        if let geometry = node.geometry {
+            let material = SCNMaterial()
+            material.diffuse.contents = UIColor(red: 0.20, green: 0.42, blue: 0.52, alpha: 1)
+            material.lightingModel = .lambert
+            material.metalness.contents = 0
+            material.roughness.contents = 0.88
+            geometry.materials = [material]
+        }
+        node.childNodes.forEach(applyObjectScanMaterials)
+    }
+
+    private func isObjectScan(_ url: URL) -> Bool {
+        url.path.contains("/ObjectScans/") || url.path.contains("/ObjectScanWork/")
     }
 
     private func visibleBounds(for rootNode: SCNNode) -> (min: SCNVector3, max: SCNVector3)? {
