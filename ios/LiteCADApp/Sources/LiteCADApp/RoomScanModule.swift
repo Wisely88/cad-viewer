@@ -263,6 +263,7 @@ struct HomeDesignScanView: View {
     @StateObject private var store = RoomScanStore()
     @State private var scanName = ""
     @State private var shareItems: [Any] = []
+    @State private var pendingShareItems: [Any]?
     @State private var isSharePresented = false
     @State private var isFilesPresented = false
     @State private var isImporterPresented = false
@@ -299,7 +300,7 @@ struct HomeDesignScanView: View {
         .sheet(isPresented: $isSharePresented) {
             RoomScanShareSheet(items: shareItems)
         }
-        .sheet(isPresented: $isFilesPresented) {
+        .sheet(isPresented: $isFilesPresented, onDismiss: presentPendingShare) {
             RoomScanFilesView(
                 store: store,
                 onOpen: open(record:),
@@ -459,9 +460,17 @@ struct HomeDesignScanView: View {
             isStatusPresented = true
             return
         }
-        shareItems = urls
+        pendingShareItems = urls
         isFilesPresented = false
-        isSharePresented = true
+    }
+
+    private func presentPendingShare() {
+        guard let pendingShareItems else { return }
+        self.pendingShareItems = nil
+        shareItems = pendingShareItems
+        DispatchQueue.main.async {
+            isSharePresented = true
+        }
     }
 
     private func importFileResult(_ result: Result<[URL], Error>) {

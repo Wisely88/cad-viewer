@@ -400,6 +400,7 @@ struct ObjectScanView: View {
     @State private var isImporterPresented = false
     @State private var previewURL: URL?
     @State private var shareItems: [Any] = []
+    @State private var pendingShareItems: [Any]?
     @State private var statusMessage = ""
     @State private var isStatusPresented = false
     @State private var isLivePreviewExpanded = false
@@ -431,7 +432,7 @@ struct ObjectScanView: View {
                 }
             }
         }
-        .sheet(isPresented: $isFilesPresented) {
+        .sheet(isPresented: $isFilesPresented, onDismiss: presentPendingShare) {
             ObjectScanFilesView(
                 store: store,
                 onOpen: open(record:),
@@ -727,9 +728,19 @@ struct ObjectScanView: View {
             isStatusPresented = true
             return
         }
-        shareItems = [url]
+        pendingShareItems = [url]
         isFilesPresented = false
-        isSharePresented = true
+    }
+
+    private func presentPendingShare() {
+        guard let pendingShareItems else { return }
+        self.pendingShareItems = nil
+        shareItems = pendingShareItems
+        // Wait for the file list sheet's dismissal transaction to finish
+        // before presenting UIActivityViewController for the first time.
+        DispatchQueue.main.async {
+            isSharePresented = true
+        }
     }
 
     private func importFileResult(_ result: Result<[URL], Error>) {
