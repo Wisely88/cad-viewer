@@ -22,7 +22,7 @@ commit，并通过脚本构建 iPhoneOS arm64 静态归档；归档不进入仓�
 原生 App 另有独立的 **3D 扫描**入口：
 
 - **家装设计 3D 扫描**：基于 RoomPlan 扫描房间、墙面、门窗和可识别家具。
-- **景物静物扫描**：基于 Object Capture + Photogrammetry 将家具、设备、摆件或器件拍摄生成 USDZ。
+- **静物3D扫描**：基于 Object Capture + Photogrammetry 将家具、设备、摆件或器件拍摄生成 USDZ。
 - 两个模块分别保存扫描文件，并支持重新打开、分享/云端、删除，以及 3D 预览中的旋转、平移和缩放。
 
 ## 特色

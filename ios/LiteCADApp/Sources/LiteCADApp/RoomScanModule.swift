@@ -590,6 +590,7 @@ struct ThreeDScanPreviewView: View {
             }
             .navigationTitle(url.deletingPathExtension().lastPathComponent)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
@@ -604,14 +605,16 @@ struct RoomScanSceneView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView(frame: .zero)
-        view.backgroundColor = .black
-        view.autoenablesDefaultLighting = true
+        view.backgroundColor = UIColor(white: 0.06, alpha: 1)
+        view.debugOptions = [.showWireframe]
+        view.autoenablesDefaultLighting = false
         view.allowsCameraControl = true
         view.cameraControlConfiguration.allowsTranslation = true
         view.defaultCameraController.inertiaEnabled = true
         view.defaultCameraController.automaticTarget = true
         do {
             let scene = try SCNScene(url: url, options: [.checkConsistency: true])
+            scene.background.contents = UIColor(white: 0.06, alpha: 1)
             applyFallbackMaterials(to: scene.rootNode)
             guard let bounds = visibleBounds(for: scene.rootNode) else {
                 throw PreviewError.noVisibleGeometry
@@ -635,14 +638,14 @@ struct RoomScanSceneView: UIViewRepresentable {
             ambientLight.light = SCNLight()
             ambientLight.light?.type = .ambient
             ambientLight.light?.color = UIColor(white: 0.78, alpha: 1)
-            ambientLight.light?.intensity = 650
+            ambientLight.light?.intensity = 260
             scene.rootNode.addChildNode(ambientLight)
 
             let keyLight = SCNNode()
             keyLight.light = SCNLight()
             keyLight.light?.type = .omni
             keyLight.light?.color = UIColor(white: 1, alpha: 1)
-            keyLight.light?.intensity = 950
+            keyLight.light?.intensity = 720
             keyLight.light?.attenuationEndDistance = CGFloat(max(cameraDistance * 4, 20))
             keyLight.position = SCNVector3(
                 center.x + cameraDistance,

@@ -126,7 +126,7 @@ This workflow uses RoomPlan for room-scale capture:
   two-finger translation/pan, and pinch zoom. Files can also import a USDZ
   from the system Files picker into the private scan area for immediate review.
 
-### 景物静物扫描
+### 静物3D扫描
 
 This workflow uses Object Capture plus Photogrammetry for a single object such
 as furniture, equipment, a fixture, or a site sample:
@@ -134,7 +134,7 @@ as furniture, equipment, a fixture, or a site sample:
 - The app guides the user through object detection and a slow orbit capture,
   then generates a USDZ model locally from the captured image set.
 - The result is stored under `Application Support/LiteCAD/ObjectScans`, listed
-  in **静物模型文件**, and supports the same open, delete, share/cloud, USDZ
+  in **静物3D模型文件**, and supports the same open, delete, share/cloud, USDZ
   import, and 3D rotate/pan/zoom operations as the room workflow.
 - It is intended for visual reference and field coordination. It does not
   promise survey-grade dimensions, hidden-surface reconstruction, or reliable

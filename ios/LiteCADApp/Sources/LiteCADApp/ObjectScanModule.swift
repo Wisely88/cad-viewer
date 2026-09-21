@@ -27,7 +27,7 @@ struct ThreeDScanHubView: View {
                         ObjectScanView()
                     } label: {
                         ThreeDScanModuleRow(
-                            title: "景物静物扫描",
+                            title: "静物3D扫描",
                             subtitle: "围绕家具、设备、摆件或器件拍摄，生成可保存的 3D 模型。",
                             systemImage: "cube.transparent",
                             tint: .orange
@@ -132,7 +132,7 @@ final class ObjectScanStore: ObservableObject {
         let folder = try scansDirectory().appendingPathComponent(id.uuidString, isDirectory: true)
         try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
         let baseName = sourceURL.deletingPathExtension().lastPathComponent
-        let safeName = makeSafeName(baseName.isEmpty ? "导入静物模型" : baseName)
+        let safeName = makeSafeName(baseName.isEmpty ? "导入静物3D模型" : baseName)
         let destination = folder.appendingPathComponent("\(safeName).usdz")
         try fileManager.copyItem(at: sourceURL, to: destination)
         let record = ObjectScanRecord(
@@ -191,7 +191,7 @@ final class ObjectScanStore: ObservableObject {
         let safe = trimmed
             .replacingOccurrences(of: "/", with: "-", options: .literal)
             .replacingOccurrences(of: ":", with: "-", options: .literal)
-        return safe.isEmpty ? "景物扫描-\(Self.dateFormatter.string(from: Date()))" : safe
+        return safe.isEmpty ? "静物3D扫描-\(Self.dateFormatter.string(from: Date()))" : safe
     }
 
     private static let dateFormatter: DateFormatter = {
@@ -218,6 +218,7 @@ final class ObjectScanModel: ObservableObject {
     @Published private(set) var message = "把物品放在光线均匀、背景干净的位置。"
     @Published private(set) var progress = 0.0
     @Published private(set) var shotCount = 0
+    @Published private(set) var hasCompletedScanPass = false
     @Published private(set) var modelURL: URL?
 
     private var imagesDirectory: URL?
@@ -226,9 +227,18 @@ final class ObjectScanModel: ObservableObject {
 
     var isSupported: Bool { ObjectCaptureSession.isSupported }
 
+    var maximumShotCount: Int {
+        session.maximumNumberOfInputImages
+    }
+
+    var captureProgress: Double {
+        guard maximumShotCount > 0 else { return hasCompletedScanPass ? 1 : 0 }
+        return min(Double(shotCount) / Double(maximumShotCount), 1)
+    }
+
     func start() {
         guard isSupported else {
-            phase = .failed("此设备不支持景物静物 3D 扫描。")
+            phase = .failed("此设备不支持静物3D扫描。")
             return
         }
         do {
@@ -244,6 +254,7 @@ final class ObjectScanModel: ObservableObject {
             imagesDirectory = directory
             modelURL = nil
             shotCount = 0
+            hasCompletedScanPass = false
             progress = 0
             var configuration = ObjectCaptureSession.Configuration()
             configuration.isOverCaptureEnabled = true
@@ -280,6 +291,7 @@ final class ObjectScanModel: ObservableObject {
         message = "把物品放在光线均匀、背景干净的位置。"
         progress = 0
         shotCount = 0
+        hasCompletedScanPass = false
         modelURL = nil
     }
 
@@ -292,6 +304,12 @@ final class ObjectScanModel: ObservableObject {
     func observeShotCount() async {
         for await count in session.numberOfShotsTakenUpdates {
             shotCount = count
+        }
+    }
+
+    func observeScanPass() async {
+        for await completed in session.userCompletedScanPassUpdates {
+            hasCompletedScanPass = completed
         }
     }
 
@@ -384,6 +402,7 @@ struct ObjectScanView: View {
     @State private var shareItems: [Any] = []
     @State private var statusMessage = ""
     @State private var isStatusPresented = false
+    @State private var isLivePreviewExpanded = false
 
     var body: some View {
         NavigationStack {
@@ -396,7 +415,7 @@ struct ObjectScanView: View {
                     captureView
                 }
             }
-            .navigationTitle("景物静物扫描")
+            .navigationTitle("静物3D扫描")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -408,7 +427,7 @@ struct ObjectScanView: View {
                     } label: {
                         Image(systemName: "folder")
                     }
-                    .accessibilityLabel("已保存静物模型")
+                    .accessibilityLabel("已保存静物3D模型")
                 }
             }
         }
@@ -434,7 +453,7 @@ struct ObjectScanView: View {
             allowsMultipleSelection: false,
             onCompletion: importFileResult
         )
-        .alert("景物静物扫描", isPresented: $isStatusPresented) {
+        .alert("静物3D扫描", isPresented: $isStatusPresented) {
             Button("知道了", role: .cancel) {}
         } message: {
             Text(statusMessage)
@@ -445,11 +464,14 @@ struct ObjectScanView: View {
         .task(id: model.session.id) {
             await model.observeShotCount()
         }
+        .task(id: model.session.id) {
+            await model.observeScanPass()
+        }
     }
 
     private var introView: some View {
         ContentUnavailableView {
-            Label("景物静物扫描", systemImage: "cube.transparent")
+            Label("静物3D扫描", systemImage: "cube.transparent")
         } description: {
             Text("适合家具、设备、摆件和器件等单件物品。开始后围绕物品缓慢移动，保持光线和纹理稳定。")
         } actions: {
@@ -473,43 +495,103 @@ struct ObjectScanView: View {
     }
 
     private var captureView: some View {
-        ZStack(alignment: .bottom) {
+        Group {
             if model.phase == .detecting || model.phase == .capturing {
-                ObjectCaptureView(session: model.session)
-                    .ignoresSafeArea()
+                scanningContent
             } else if let modelURL = model.modelURL {
-                RoomScanSceneView(url: modelURL)
-                    .ignoresSafeArea()
-            } else {
-                Color.black
-                    .ignoresSafeArea()
-            }
-            VStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Label("景物静物扫描", systemImage: "cube.transparent")
-                            .font(.headline)
-                        Spacer()
-                        Text(phaseTitle)
-                            .foregroundStyle(.cyan)
+                ZStack(alignment: .bottom) {
+                    RoomScanSceneView(url: modelURL)
+                        .ignoresSafeArea()
+                    VStack(spacing: 10) {
+                        scanStatusCard
+                        controls
                     }
-                    Text(model.message)
-                        .font(.footnote)
-                    if model.shotCount > 0 {
-                        Text("已拍摄 \(model.shotCount) 张")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    .padding(12)
                 }
-                .foregroundStyle(.white)
-                .padding(12)
-                .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 14))
+            } else {
+                processingContent
+            }
+        }
+        .background(Color.black)
+    }
 
+    private var scanningContent: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                scanStatusCard
+                liveCapturePanel
                 controls
             }
             .padding(12)
         }
         .background(Color.black)
+    }
+
+    private var processingContent: some View {
+        VStack(spacing: 16) {
+            scanStatusCard
+            controls
+            Spacer()
+        }
+        .padding(12)
+        .foregroundStyle(.white)
+    }
+
+    private var scanStatusCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("静物3D扫描", systemImage: "cube.transparent")
+                    .font(.headline)
+                Spacer()
+                Text(phaseTitle)
+                    .foregroundStyle(.cyan)
+            }
+            Text(model.message)
+                .font(.footnote)
+                .fixedSize(horizontal: false, vertical: true)
+            if model.phase == .detecting || model.phase == .capturing {
+                ProgressView(value: model.captureProgress) {
+                    Text(captureProgressTitle)
+                }
+                .tint(.cyan)
+                .animation(.easeOut(duration: 0.2), value: model.captureProgress)
+            } else if model.phase == .processing {
+                ProgressView(value: model.progress) {
+                    Text("正在生成 3D 模型")
+                }
+                .tint(.cyan)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var liveCapturePanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("实时扫描画面", systemImage: "camera.viewfinder")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button(isLivePreviewExpanded ? "收起" : "放大") {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isLivePreviewExpanded.toggle()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            ObjectCaptureView(session: model.session)
+                .frame(maxWidth: .infinity)
+                .frame(height: isLivePreviewExpanded ? 430 : 285)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(.white.opacity(0.22), lineWidth: 1)
+                }
+        }
+        .padding(10)
+        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
     }
 
     @ViewBuilder
@@ -534,13 +616,7 @@ struct ObjectScanView: View {
             .buttonStyle(.borderedProminent)
             .tint(.cyan)
         case .processing:
-            ProgressView(value: model.progress) {
-                Text("正在生成 3D 模型")
-            }
-            .tint(.cyan)
-            .padding(12)
-            .frame(maxWidth: .infinity)
-            .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
+            EmptyView()
         case .completed:
             completedControls
         case .failed:
@@ -601,6 +677,16 @@ struct ObjectScanView: View {
         }
     }
 
+    private var captureProgressTitle: String {
+        if model.hasCompletedScanPass {
+            return "已完成一圈 · 可补拍后结束"
+        }
+        if model.maximumShotCount > 0 {
+            return "已采集 \(model.shotCount) / \(model.maximumShotCount) 张"
+        }
+        return "已采集 \(model.shotCount) 张"
+    }
+
     private func saveModel() {
         guard let modelURL = model.modelURL else { return }
         do {
@@ -626,7 +712,7 @@ struct ObjectScanView: View {
 
     private func open(record: ObjectScanRecord) {
         guard let url = store.url(for: record) else {
-            statusMessage = "静物模型文件已不存在，请重新导入或扫描。"
+            statusMessage = "静物3D模型文件已不存在，请重新导入或扫描。"
             isStatusPresented = true
             return
         }
@@ -637,7 +723,7 @@ struct ObjectScanView: View {
 
     private func share(record: ObjectScanRecord) {
         guard let url = store.url(for: record) else {
-            statusMessage = "静物模型文件已不存在，无法分享。"
+            statusMessage = "静物3D模型文件已不存在，无法分享。"
             isStatusPresented = true
             return
         }
@@ -680,7 +766,7 @@ private struct ObjectScanFilesView: View {
                 Section("本机已保存") {
                     if store.records.isEmpty {
                         ContentUnavailableView(
-                            "暂无静物模型",
+                            "暂无静物3D模型",
                             systemImage: "cube.transparent",
                             description: Text("完成静物扫描并保存后，模型会出现在这里。")
                         )
@@ -720,7 +806,7 @@ private struct ObjectScanFilesView: View {
                     }
                 }
             }
-            .navigationTitle("静物模型文件")
+            .navigationTitle("静物3D模型文件")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("完成") { dismiss() }
