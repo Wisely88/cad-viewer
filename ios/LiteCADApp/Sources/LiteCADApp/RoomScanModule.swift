@@ -733,12 +733,24 @@ struct RoomScanSceneView: UIViewRepresentable {
 
     private func applyObjectScanMaterials(to node: SCNNode) {
         if let geometry = node.geometry {
-            let material = SCNMaterial()
-            material.diffuse.contents = UIColor(red: 0.20, green: 0.42, blue: 0.52, alpha: 1)
-            material.lightingModel = .lambert
-            material.metalness.contents = 0
-            material.roughness.contents = 0.88
-            geometry.materials = [material]
+            if geometry.materials.isEmpty {
+                let material = SCNMaterial()
+                material.diffuse.contents = UIColor(white: 0.62, alpha: 1)
+                material.lightingModel = .lambert
+                geometry.firstMaterial = material
+            } else {
+                // Keep the baked Object Capture texture. Only normalize the
+                // lighting model so the scan retains its real appearance
+                // without SceneKit's dense debug wireframe.
+                for material in geometry.materials {
+                    material.lightingModel = .lambert
+                    material.metalness.contents = 0
+                    material.roughness.contents = 0.88
+                    if material.diffuse.contents == nil {
+                        material.diffuse.contents = UIColor(white: 0.62, alpha: 1)
+                    }
+                }
+            }
         }
         node.childNodes.forEach(applyObjectScanMaterials)
     }
