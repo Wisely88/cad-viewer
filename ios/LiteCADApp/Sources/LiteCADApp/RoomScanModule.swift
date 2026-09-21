@@ -652,14 +652,14 @@ struct RoomScanSceneView: UIViewRepresentable {
             ambientLight.light = SCNLight()
             ambientLight.light?.type = .ambient
             ambientLight.light?.color = UIColor(white: 0.78, alpha: 1)
-            ambientLight.light?.intensity = isObjectScan(url) ? 75 : 130
+            ambientLight.light?.intensity = isObjectScan(url) ? 105 : 130
             scene.rootNode.addChildNode(ambientLight)
 
             let keyLight = SCNNode()
             keyLight.light = SCNLight()
             keyLight.light?.type = .omni
             keyLight.light?.color = UIColor(white: 1, alpha: 1)
-            keyLight.light?.intensity = isObjectScan(url) ? 210 : 420
+            keyLight.light?.intensity = isObjectScan(url) ? 300 : 420
             keyLight.light?.attenuationEndDistance = CGFloat(max(cameraDistance * 4, 20))
             keyLight.position = SCNVector3(
                 center.x + cameraDistance,
