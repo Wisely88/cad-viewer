@@ -396,11 +396,8 @@ struct ObjectScanView: View {
     @State private var scanName = ""
     @State private var isFilesPresented = false
     @State private var isPreviewPresented = false
-    @State private var isSharePresented = false
     @State private var isImporterPresented = false
     @State private var previewURL: URL?
-    @State private var shareItems: [Any] = []
-    @State private var pendingShareItems: [Any]?
     @State private var statusMessage = ""
     @State private var isStatusPresented = false
     @State private var isLivePreviewExpanded = false
@@ -432,11 +429,10 @@ struct ObjectScanView: View {
                 }
             }
         }
-        .sheet(isPresented: $isFilesPresented, onDismiss: presentPendingShare) {
+        .sheet(isPresented: $isFilesPresented) {
             ObjectScanFilesView(
                 store: store,
                 onOpen: open(record:),
-                onShare: share(record:),
                 onImport: { isImporterPresented = true }
             )
         }
@@ -444,9 +440,6 @@ struct ObjectScanView: View {
             if let previewURL {
                 ThreeDScanPreviewView(url: previewURL)
             }
-        }
-        .sheet(isPresented: $isSharePresented) {
-            ScanShareSheet(items: shareItems)
         }
         .fileImporter(
             isPresented: $isImporterPresented,
@@ -643,10 +636,8 @@ struct ObjectScanView: View {
                         Label("保存到文件", systemImage: "externaldrive.badge.plus")
                     }
                     .buttonStyle(.borderedProminent)
-                } else {
-                    Button {
-                        shareSavedModel()
-                    } label: {
+                } else if let previewURL {
+                    ShareLink(item: previewURL) {
                         Label("分享 / 云端", systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(.borderedProminent)
@@ -701,16 +692,6 @@ struct ObjectScanView: View {
         }
     }
 
-    private func shareSavedModel() {
-        guard let previewURL else {
-            statusMessage = "请先保存 3D 模型，再进行分享。"
-            isStatusPresented = true
-            return
-        }
-        shareItems = [previewURL]
-        isSharePresented = true
-    }
-
     private func open(record: ObjectScanRecord) {
         guard let url = store.url(for: record) else {
             statusMessage = "静物3D模型文件已不存在，请重新导入或扫描。"
@@ -720,27 +701,6 @@ struct ObjectScanView: View {
         previewURL = url
         isFilesPresented = false
         isPreviewPresented = true
-    }
-
-    private func share(record: ObjectScanRecord) {
-        guard let url = store.url(for: record) else {
-            statusMessage = "静物3D模型文件已不存在，无法分享。"
-            isStatusPresented = true
-            return
-        }
-        pendingShareItems = [url]
-        isFilesPresented = false
-    }
-
-    private func presentPendingShare() {
-        guard let pendingShareItems else { return }
-        self.pendingShareItems = nil
-        shareItems = pendingShareItems
-        // Wait for the file list sheet's dismissal transaction to finish
-        // before presenting UIActivityViewController for the first time.
-        DispatchQueue.main.async {
-            isSharePresented = true
-        }
     }
 
     private func importFileResult(_ result: Result<[URL], Error>) {
@@ -760,7 +720,6 @@ private struct ObjectScanFilesView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var store: ObjectScanStore
     let onOpen: (ObjectScanRecord) -> Void
-    let onShare: (ObjectScanRecord) -> Void
     let onImport: () -> Void
 
     var body: some View {
@@ -801,9 +760,13 @@ private struct ObjectScanFilesView: View {
                                     Button("打开3D") { onOpen(record) }
                                         .buttonStyle(.borderedProminent)
                                         .controlSize(.small)
-                                    Button("分享 / 云端") { onShare(record) }
+                                    if let url = store.url(for: record) {
+                                        ShareLink(item: url) {
+                                            Label("分享 / 云端", systemImage: "square.and.arrow.up")
+                                        }
                                         .buttonStyle(.bordered)
                                         .controlSize(.small)
+                                    }
                                     Button(role: .destructive) { store.delete(record) } label: {
                                         Image(systemName: "trash")
                                     }
@@ -827,13 +790,34 @@ private struct ObjectScanFilesView: View {
     }
 }
 
-struct ScanShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
+/// Supplies an immediate filename placeholder while a share extension reads
+/// the local USDZ/JSON file. This avoids a blank first presentation on iOS
+/// when the extension has not cached the app's file URL yet.
+final class LiteCADShareItemSource: NSObject, UIActivityItemSource {
+    let url: URL
 
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    init(url: URL) {
+        self.url = url
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    func activityViewControllerPlaceholderItem(
+        _ activityViewController: UIActivityViewController
+    ) -> Any {
+        url.lastPathComponent
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        itemForActivityType activityType: UIActivity.ActivityType?
+    ) -> Any? {
+        url
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        subjectForActivityType activityType: UIActivity.ActivityType?
+    ) -> String {
+        url.lastPathComponent
+    }
 }
 #endif

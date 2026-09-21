@@ -434,7 +434,7 @@ struct HomeDesignScanView: View {
         do {
             let (_, urls) = try store.save(room: room, displayName: scanName)
             previewURL = urls.first
-            shareItems = urls
+            shareItems = urls.map(LiteCADShareItemSource.init(url:))
             isSharePresented = true
         } catch {
             statusMessage = "保存失败：\(error.localizedDescription)"
@@ -460,7 +460,7 @@ struct HomeDesignScanView: View {
             isStatusPresented = true
             return
         }
-        pendingShareItems = urls
+        pendingShareItems = urls.map(LiteCADShareItemSource.init(url:))
         isFilesPresented = false
     }
 
